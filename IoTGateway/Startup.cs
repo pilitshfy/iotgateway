@@ -40,6 +40,18 @@ namespace IoTGateway
             services.AddWtmSwagger();
             services.AddWtmMultiLanguages(ConfigRoot);
 
+            // 添加 CORS 支持前后端分离
+            services.AddCors(options =>
+            {
+                options.AddPolicy("AllowFrontend", policy =>
+                {
+                    policy.SetIsOriginAllowed(_ => true)
+                          .AllowAnyHeader()
+                          .AllowAnyMethod()
+                          .AllowCredentials();
+                });
+            });
+
             services.AddMvc(options =>
             {
                 options.UseWtmMvcOptions();
@@ -88,6 +100,7 @@ namespace IoTGateway
             app.UseWtmStaticFiles();
             app.UseRouting();
             app.UseWtmMultiLanguages();
+            app.UseCors("AllowFrontend"); // 使用 CORS 策略
             app.UseWtmCrossDomain();
             app.UseAuthentication();
             app.UseAuthorization();
@@ -98,15 +111,13 @@ namespace IoTGateway
             app.UseEndpoints(endpoints =>
             {
                 //MCP
-                app.UseEndpoints(endpoints =>
-                {
-                    endpoints.MapMcp(); //
-                });
+                endpoints.MapMcp();
                 //MqttServer
-                app.UseEndpoints(endpoints =>
-                {
-                    endpoints.MapMqtt("/mqtt");
-                });
+                endpoints.MapMqtt("/mqtt");
+                // API 路由
+                endpoints.MapControllerRoute(
+                   name: "apiRoute",
+                   pattern: "api/{controller}/{action}/{id?}");
 
                 endpoints.MapControllerRoute(
                    name: "areaRoute",
