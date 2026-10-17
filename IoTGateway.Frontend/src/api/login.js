@@ -20,7 +20,7 @@ export function logout() {
 // 获取当前用户信息
 export function getCurrentUser() {
   return request({
-    url: '/Framework/GetCurrentUserInfo',
+    url: '/login/currentuser',
     method: 'get'
   })
 }

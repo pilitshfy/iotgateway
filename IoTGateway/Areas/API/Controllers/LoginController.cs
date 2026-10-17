@@ -2,6 +2,7 @@ using IoTGateway.ViewModel.HomeVMs;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 using WalkingTec.Mvvm.Core;
+using WalkingTec.Mvvm.Core.Support.Json;
 using WalkingTec.Mvvm.Mvc;
 
 namespace IoTGateway.Areas.API.Controllers
@@ -11,7 +12,16 @@ namespace IoTGateway.Areas.API.Controllers
     [ApiController]
     public class LoginController : BaseApiController
     {
+        private readonly ITokenService _tokenService;
+
+        public LoginController(ITokenService tokenService)
+        {
+            _tokenService = tokenService;
+        }
+
         [HttpPost]
+        [Route("")]
+        [Public]
         public async Task<ActionResult> Login([FromBody] LoginVM vm)
         {
             if (!ModelState.IsValid)
@@ -26,7 +36,7 @@ namespace IoTGateway.Areas.API.Controllers
             }
 
             Wtm.LoginUserInfo = user;
-            var token = await Wtm.CreateTokenAsync(user);
+            var token = await _tokenService.IssueTokenAsync(user);
 
             return JsonMore(new
             {
@@ -43,6 +53,7 @@ namespace IoTGateway.Areas.API.Controllers
         }
 
         [HttpPost]
+        [Route("logout")]
         [AllRights]
         public ActionResult Logout()
         {
@@ -51,6 +62,7 @@ namespace IoTGateway.Areas.API.Controllers
         }
 
         [HttpGet]
+        [Route("currentuser")]
         [AllRights]
         public ActionResult GetCurrentUser()
         {

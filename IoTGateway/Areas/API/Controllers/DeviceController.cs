@@ -1,6 +1,8 @@
 using IoTGateway.ViewModel.BasicData.DeviceVMs;
 using Microsoft.AspNetCore.Mvc;
 using System;
+using WalkingTec.Mvvm.Core;
+using WalkingTec.Mvvm.Core.Extensions;
 using WalkingTec.Mvvm.Mvc;
 
 namespace IoTGateway.Areas.API.Controllers
@@ -18,7 +20,8 @@ namespace IoTGateway.Areas.API.Controllers
             if (ModelState.IsValid)
             {
                 vm.Searcher = searcher;
-                return JsonMore(new { Code = 200, Data = vm.GetJson(false) });
+                var result = vm.GetJsonForApi();
+                return JsonMore(new { Code = 200, Data = result });
             }
             else
             {
