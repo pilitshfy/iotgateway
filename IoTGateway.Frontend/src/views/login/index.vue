@@ -76,16 +76,17 @@ const handleLogin = async () => {
       loading.value = true
       try {
         const res = await login(form)
-        if (res && res.token)) {
-          userStore.setToken(res.token)
+        if (res && res.Data && res.Data.Token) {
+          userStore.setToken(res.Data.Token)
           userStore.setUserInfo(res.Data || {})
           ElMessage.success('登录成功')
           router.push('/')
         } else {
-          ElMessage.error(res.Msg || '登录失败')
+          ElMessage.error((res && res.Msg) || '登录失败')
         }
       } catch (error) {
         console.error('登录失败:', error)
+        // 错误提示已在 request.js 拦截器中统一处理
       } finally {
         loading.value = false
       }

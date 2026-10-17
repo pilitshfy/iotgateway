@@ -3,7 +3,7 @@ import request from '@/utils/request'
 // 获取设备列表
 export function getDevices(params) {
   return request({
-    url: '/api/BasicData/Device/Search',
+    url: '/BasicData/Device/Search',
     method: 'post',
     data: params
   })
@@ -12,7 +12,7 @@ export function getDevices(params) {
 // 获取设备详情
 export function getDevice(id) {
   return request({
-    url: `/api/BasicData/Device/${id}`,
+    url: `/BasicData/Device/${id}`,
     method: 'get'
   })
 }
@@ -20,7 +20,7 @@ export function getDevice(id) {
 // 创建设备
 export function createDevice(data) {
   return request({
-    url: '/api/BasicData/Device/Create',
+    url: '/BasicData/Device/Create',
     method: 'post',
     data
   })
@@ -29,7 +29,7 @@ export function createDevice(data) {
 // 更新设备
 export function updateDevice(data) {
   return request({
-    url: '/api/BasicData/Device/Edit',
+    url: '/BasicData/Device/Edit',
     method: 'post',
     data
   })
@@ -38,7 +38,7 @@ export function updateDevice(data) {
 // 删除设备
 export function deleteDevice(id) {
   return request({
-    url: `/api/BasicData/Device/${id}`,
+    url: `/BasicData/Device/${id}`,
     method: 'delete'
   })
 }
@@ -46,7 +46,7 @@ export function deleteDevice(id) {
 // 批量删除设备
 export function batchDeleteDevices(ids) {
   return request({
-    url: '/api/BasicData/Device/BatchDelete',
+    url: '/BasicData/Device/BatchDelete',
     method: 'post',
     data: { ids }
   })
@@ -55,7 +55,7 @@ export function batchDeleteDevices(ids) {
 // 获取驱动方法
 export function getDriverMethods(id) {
   return request({
-    url: `/api/BasicData/Device/GetMethods?ID=${id}`,
+    url: `/BasicData/Device/GetMethods?ID=${id}`,
     method: 'get'
   })
 }

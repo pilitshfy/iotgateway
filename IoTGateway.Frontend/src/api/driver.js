@@ -3,7 +3,7 @@ import request from '@/utils/request'
 // 获取驱动列表
 export function getDrivers(params) {
   return request({
-    url: '/api/BasicData/Driver/Search',
+    url: '/BasicData/Driver/Search',
     method: 'post',
     data: params
   })
@@ -12,7 +12,7 @@ export function getDrivers(params) {
 // 获取驱动详情
 export function getDriver(id) {
   return request({
-    url: `/api/BasicData/Driver/${id}`,
+    url: `/BasicData/Driver/${id}`,
     method: 'get'
   })
 }
@@ -20,7 +20,7 @@ export function getDriver(id) {
 // 创建驱动
 export function createDriver(data) {
   return request({
-    url: '/api/BasicData/Driver/Create',
+    url: '/BasicData/Driver/Create',
     method: 'post',
     data
   })
@@ -29,7 +29,7 @@ export function createDriver(data) {
 // 更新驱动
 export function updateDriver(data) {
   return request({
-    url: '/api/BasicData/Driver/Edit',
+    url: '/BasicData/Driver/Edit',
     method: 'post',
     data
   })
@@ -38,7 +38,7 @@ export function updateDriver(data) {
 // 删除驱动
 export function deleteDriver(id) {
   return request({
-    url: `/api/BasicData/Driver/${id}`,
+    url: `/BasicData/Driver/${id}`,
     method: 'delete'
   })
 }

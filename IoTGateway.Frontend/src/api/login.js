@@ -3,7 +3,7 @@ import request from '@/utils/request'
 // 登录
 export function login(data) {
   return request({
-    url: '/api/login',
+    url: '/login',
     method: 'post',
     data
   })
@@ -12,7 +12,7 @@ export function login(data) {
 // 登出
 export function logout() {
   return request({
-    url: '/api/login/logout',
+    url: '/login/logout',
     method: 'post'
   })
 }
@@ -20,7 +20,7 @@ export function logout() {
 // 获取当前用户信息
 export function getCurrentUser() {
   return request({
-    url: '/api/_Framework/GetCurrentUserInfo',
+    url: '/Framework/GetCurrentUserInfo',
     method: 'get'
   })
 }
@@ -28,7 +28,7 @@ export function getCurrentUser() {
 // 获取菜单
 export function getMenu() {
   return request({
-    url: '/api/_Framework/Menu',
+    url: '/Framework/Menu',
     method: 'get'
   })
 }
