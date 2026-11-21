@@ -10,11 +10,15 @@ namespace Admin.NET.Application;
 public class IotSystemConfigService : IDynamicApiController, ITransient
 {
     private readonly SqlSugarRepository<IotSystemConfig> _configRep;
+    private readonly IServiceProvider _serviceProvider;
 
-    public IotSystemConfigService(SqlSugarRepository<IotSystemConfig> configRep)
+    public IotSystemConfigService(SqlSugarRepository<IotSystemConfig> configRep, IServiceProvider serviceProvider)
     {
         _configRep = configRep;
+        _serviceProvider = serviceProvider;
     }
+
+    private IIotPlatformRuntime PlatformRuntime => _serviceProvider.GetService<IIotPlatformRuntime>();
 
     /// <summary>
     /// 获取传输配置
@@ -44,16 +48,19 @@ public class IotSystemConfigService : IDynamicApiController, ITransient
         {
             input.Id = 0;
             await _configRep.InsertAsync(input);
-            return;
+        }
+        else
+        {
+            db.GatewayName = input.GatewayName;
+            db.ClientId = input.ClientId;
+            db.MqttIp = input.MqttIp;
+            db.MqttPort = input.MqttPort;
+            db.MqttUName = input.MqttUName;
+            db.MqttUPwd = input.MqttUPwd;
+            db.IoTPlatformType = input.IoTPlatformType;
+            await _configRep.AsUpdateable(db).ExecuteCommandAsync();
         }
 
-        db.GatewayName = input.GatewayName;
-        db.ClientId = input.ClientId;
-        db.MqttIp = input.MqttIp;
-        db.MqttPort = input.MqttPort;
-        db.MqttUName = input.MqttUName;
-        db.MqttUPwd = input.MqttUPwd;
-        db.IoTPlatformType = input.IoTPlatformType;
-        await _configRep.AsUpdateable(db).ExecuteCommandAsync();
+        if (PlatformRuntime != null) await PlatformRuntime.ReloadAsync();
     }
 }

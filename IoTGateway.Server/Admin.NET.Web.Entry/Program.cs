@@ -4,6 +4,7 @@
 //
 // 不得利用本项目从事危害国家安全、扰乱社会秩序、侵犯他人合法权益等法律法规禁止的活动！任何基于本项目二次开发而产生的一切法律纠纷和责任，我们不承担任何责任！
 using Microsoft.Extensions.Hosting.WindowsServices;
+using MQTTnet.AspNetCore;
 
 Serve.Run(
     RunOptions.Default //创建一个 WebApplication 主机的配置对象
@@ -26,6 +27,18 @@ public class WebComponent : IWebComponent
             u.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(30);
             u.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(30);
             u.Limits.MaxRequestBodySize = null;
+
+            // 保留 ASPNETCORE_URLS 指定的 HTTP 端口
+            var urls = builder.Configuration["urls"] ?? "http://0.0.0.0:5005";
+            foreach (var url in urls.Split(';', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (!Uri.TryCreate(url.Replace("*", "0.0.0.0"), UriKind.Absolute, out var uri)) continue;
+                if (uri.Port == 1888) continue;
+                u.ListenAnyIP(uri.Port);
+            }
+
+            // MQTT Broker 端口（TCP 直连 + WebSocket 均复用该端口）
+            u.ListenAnyIP(1888, listen => listen.UseMqtt());
         });
     }
 }

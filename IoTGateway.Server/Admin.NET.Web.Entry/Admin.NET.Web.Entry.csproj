@@ -68,4 +68,9 @@
     <ProjectReference Include="..\Admin.NET.Web.Core\Admin.NET.Web.Core.csproj" />
   </ItemGroup>
 
+  <!-- 随程序一起部署的第三方驱动插件 -->
+  <ItemGroup>
+    <None Include="..\drivers\*.dll" Link="drivers\net8.0\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

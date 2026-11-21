@@ -12,6 +12,7 @@ export const iotDeviceApi = {
 	delete: (id: number) => request({ url: '/api/iotDevice/delete', method: 'post', data: { id } }),
 	batchDelete: (ids: number[]) => request({ url: '/api/iotDevice/batchDelete', method: 'post', data: { ids } }),
 	driverList: () => request({ url: '/api/iotDevice/driverList', method: 'get' }),
+	stats: () => request({ url: '/api/iotDevice/stats', method: 'get' }),
 };
 
 /**
@@ -24,6 +25,10 @@ export const iotDriverApi = {
 	update: (data: any) => request({ url: '/api/iotDriver/update', method: 'post', data }),
 	delete: (id: number) => request({ url: '/api/iotDriver/delete', method: 'post', data: { id } }),
 	batchDelete: (ids: number[]) => request({ url: '/api/iotDriver/batchDelete', method: 'post', data: { ids } }),
+	driverFiles: () => request({ url: '/api/iotDriver/driverFiles', method: 'get' }),
+	driverConfigs: (assembleName: string) => request({ url: '/api/iotDriver/driverConfigs', method: 'get', params: { assembleName } }),
+	driverMethods: (assembleName: string) => request({ url: '/api/iotDriver/driverMethods', method: 'get', params: { assembleName } }),
+	reload: () => request({ url: '/api/iotDriver/reload', method: 'post' }),
 };
 
 /**
@@ -72,4 +77,11 @@ export const iotRpcLogApi = {
 export const iotMqttApi = {
 	status: () => request({ url: '/api/iotMqtt/status', method: 'get' }),
 	publish: (data: any) => request({ url: '/api/iotMqtt/publish', method: 'post', data }),
+};
+
+/**
+ * RPC 调试
+ */
+export const iotRpcApi = {
+	invoke: (data: any) => request({ url: '/api/iotRpcInvoke/invoke', method: 'post', data }),
 };

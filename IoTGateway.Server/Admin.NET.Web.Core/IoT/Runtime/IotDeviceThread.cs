@@ -18,6 +18,7 @@ namespace Admin.NET.Web.Core;
 public class IotDeviceThread : IDisposable
 {
     private readonly IotMqttServer _mqttServer;
+    private readonly IotPlatformService _platformService;
     private readonly ILogger _logger;
     public readonly IotDevice Device;
     public readonly IDriver Driver;
@@ -38,11 +39,12 @@ public class IotDeviceThread : IDisposable
     private DateTime _lastPublishTime = DateTime.MinValue;
     private bool? _lastConnected;
 
-    public IotDeviceThread(IotDevice device, IDriver driver, IotMqttServer mqttServer, ILogger logger)
+    public IotDeviceThread(IotDevice device, IDriver driver, IotMqttServer mqttServer, IotPlatformService platformService, ILogger logger)
     {
         Device = device;
         Driver = driver;
         _mqttServer = mqttServer;
+        _platformService = platformService;
         _logger = logger;
         _interpreter = new Interpreter();
 
@@ -261,6 +263,9 @@ public class IotDeviceThread : IDisposable
                 values
             });
             await _mqttServer.PublishAsync($"internal/v1/gateway/telemetry/{deviceName}", payload);
+
+            if (_platformService != null)
+                await _platformService.PublishTelemetryAsync(deviceName, Device, values);
         }
     }
 
@@ -271,11 +276,106 @@ public class IotDeviceThread : IDisposable
         await _mqttServer.PublishAsync(
             $"internal/v1/gateway/status/{Device.DeviceName}",
             JsonConvert.SerializeObject(new { connected }));
+
+        if (_platformService != null)
+        {
+            if (connected) await _platformService.DeviceConnectedAsync(Device.DeviceName);
+            else await _platformService.DeviceDisconnectedAsync(Device.DeviceName);
+        }
+    }
+
+    /// <summary>
+    /// 执行 RPC（写入设备变量）
+    /// </summary>
+    public async Task<RpcResponse> ExecuteRpcAsync(string deviceName, string method, string requestId, Dictionary<string, object> parameters)
+    {
+        var response = new RpcResponse
+        {
+            DeviceName = deviceName,
+            RequestId = requestId,
+            Method = method,
+            IsSuccess = false
+        };
+
+        if (!string.Equals(method, "write", StringComparison.OrdinalIgnoreCase))
+        {
+            response.Description = $"方法:{method}暂未实现";
+            return response;
+        }
+
+        _resetEvent.Reset();
+        var openedHere = false;
+        try
+        {
+            if (!Driver.IsConnected)
+            {
+                openedHere = Driver.Connect();
+            }
+
+            if (!Driver.IsConnected)
+            {
+                response.Description = $"{deviceName} 连接失败";
+                return response;
+            }
+
+            var success = true;
+            var description = string.Empty;
+            if (parameters == null || parameters.Count == 0)
+            {
+                success = false;
+                description = "请求参数为空";
+            }
+
+            foreach (var para in parameters ?? new Dictionary<string, object>())
+            {
+                var variable = string.Equals(deviceName, Device.DeviceName, StringComparison.Ordinal)
+                    ? Device.DeviceVariables.FirstOrDefault(x => x.Name == para.Key)
+                    : Device.DeviceVariables.FirstOrDefault(x => x.Name == para.Key && x.Alias == deviceName);
+
+                if (variable == null || variable.ProtectType == IotProtectTypeEnum.ReadOnly)
+                {
+                    success = false;
+                    description += $"未能找到支持写入的变量:{para.Key},";
+                    continue;
+                }
+
+                var ioArg = new DriverAddressIoArgModel
+                {
+                    Address = variable.DeviceAddress,
+                    Value = para.Value,
+                    ValueType = (DataTypeEnum)(int)variable.DataType,
+                    EndianType = (EndianEnum)(int)variable.EndianType
+                };
+
+                var writeResponse = await Driver.WriteAsync(requestId, variable.Method, ioArg);
+                if (!writeResponse.IsSuccess)
+                {
+                    success = false;
+                    description += writeResponse.Description;
+                }
+            }
+
+            response.IsSuccess = success;
+            response.Description = description;
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "RPC 写入异常：{DeviceName}", Device.DeviceName);
+            response.Description = ex.Message;
+            return response;
+        }
+        finally
+        {
+            if (openedHere) Driver.Close();
+            _resetEvent.Set();
+        }
     }
 
     public void StopThread()
     {
         _logger.LogInformation("设备采集线程停止：{DeviceName}", Device.DeviceName);
+        _platformService?.DeviceDisconnectedAsync(Device.DeviceName).GetAwaiter().GetResult();
         _tokenSource.Cancel();
         try
         {

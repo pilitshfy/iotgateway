@@ -30,6 +30,33 @@
 		</el-card>
 
 		<el-card shadow="never" class="publish-card">
+			<template #header>
+				<div class="card-header">
+					<span>WebSocket 实时订阅（/mqtt）</span>
+					<el-tag :type="wsConnected ? 'success' : 'info'">{{ wsConnected ? '已连接' : '未连接' }}</el-tag>
+				</div>
+			</template>
+			<el-form :inline="true" :model="wsForm">
+				<el-form-item label="地址">
+					<el-input v-model="wsForm.url" style="width: 340px" />
+				</el-form-item>
+				<el-form-item label="订阅主题">
+					<el-input v-model="wsForm.topics" placeholder="internal/v1/gateway/#" style="width: 280px" />
+				</el-form-item>
+				<el-form-item>
+					<el-button v-if="!wsConnected" type="primary" :loading="wsConnecting" @click="connectWs">连接</el-button>
+					<el-button v-else type="danger" @click="disconnectWs">断开</el-button>
+					<el-button @click="messages = []">清空消息</el-button>
+				</el-form-item>
+			</el-form>
+			<el-table :data="messages" border size="small" max-height="320" empty-text="暂无消息">
+				<el-table-column prop="time" label="时间" width="170" />
+				<el-table-column prop="topic" label="主题" min-width="300" />
+				<el-table-column prop="payload" label="内容" min-width="320" show-overflow-tooltip />
+			</el-table>
+		</el-card>
+
+		<el-card shadow="never" class="publish-card">
 			<template #header>消息发布（联调）</template>
 			<el-form :inline="true" :model="publishForm">
 				<el-form-item label="主题">
@@ -50,14 +77,64 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, onUnmounted, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
+import mqtt from 'mqtt';
 import { iotMqttApi } from '/@/api/iot';
 
 const loading = ref(false);
 const publishing = ref(false);
 const status = ref({ running: false, port: 1888, server: '', gatewayName: '', clients: [] });
 const publishForm = reactive({ topic: '', payload: '', retain: false });
+
+const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+const wsForm = reactive({ url: `${wsProtocol}://${window.location.host}/mqtt`, topics: 'internal/v1/gateway/#' });
+const wsConnected = ref(false);
+const wsConnecting = ref(false);
+const messages = ref([]);
+let wsClient = null;
+
+const connectWs = () => {
+	wsConnecting.value = true;
+	const clientId = `iotgatewayInternal_web_${Math.random().toString(16).slice(2, 10)}`;
+	wsClient = mqtt.connect(wsForm.url, { clientId, connectTimeout: 8000, reconnectPeriod: 0, clean: true });
+	wsClient.on('connect', () => {
+		wsConnected.value = true;
+		wsConnecting.value = false;
+		const topics = (wsForm.topics || '')
+			.split(',')
+			.map((x) => x.trim())
+			.filter(Boolean);
+		topics.forEach((topic) => wsClient.subscribe(topic, { qos: 0 }));
+		ElMessage.success('MQTT WebSocket 已连接');
+	});
+	wsClient.on('message', (topic, payload) => {
+		messages.value.unshift({
+			time: new Date().toLocaleString('zh-CN', { hour12: false }),
+			topic,
+			payload: payload.toString().slice(0, 500),
+		});
+		if (messages.value.length > 100) messages.value.pop();
+	});
+	wsClient.on('error', (err) => {
+		wsConnecting.value = false;
+		wsConnected.value = false;
+		ElMessage.error(`MQTT 连接失败：${err.message}`);
+	});
+	wsClient.on('close', () => {
+		wsConnected.value = false;
+	});
+};
+
+const disconnectWs = () => {
+	if (wsClient) {
+		wsClient.end(true);
+		wsClient = null;
+	}
+	wsConnected.value = false;
+};
+
+onUnmounted(disconnectWs);
 
 const loadData = async () => {
 	loading.value = true;

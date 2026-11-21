@@ -12,12 +12,16 @@ public class IotDriverService : IDynamicApiController, ITransient
 {
     private readonly SqlSugarRepository<IotDriver> _driverRep;
     private readonly SqlSugarRepository<IotDevice> _deviceRep;
+    private readonly IServiceProvider _serviceProvider;
 
-    public IotDriverService(SqlSugarRepository<IotDriver> driverRep, SqlSugarRepository<IotDevice> deviceRep)
+    public IotDriverService(SqlSugarRepository<IotDriver> driverRep, SqlSugarRepository<IotDevice> deviceRep, IServiceProvider serviceProvider)
     {
         _driverRep = driverRep;
         _deviceRep = deviceRep;
+        _serviceProvider = serviceProvider;
     }
+
+    private IIotDriverProvider DriverProvider => _serviceProvider.GetService<IIotDriverProvider>();
 
     /// <summary>
     /// 驱动分页列表
@@ -38,6 +42,42 @@ public class IotDriverService : IDynamicApiController, ITransient
     public async Task<List<IotDriver>> List()
     {
         return await _driverRep.AsQueryable().OrderBy(u => u.DriverName).ToListAsync();
+    }
+
+    /// <summary>
+    /// 可用驱动文件（扫描驱动目录）
+    /// </summary>
+    [DisplayName("驱动文件列表"), HttpGet]
+    public List<IotDriverFileDto> DriverFiles()
+    {
+        return DriverProvider?.GetDriverFiles() ?? new List<IotDriverFileDto>();
+    }
+
+    /// <summary>
+    /// 驱动通讯参数
+    /// </summary>
+    [DisplayName("驱动通讯参数"), HttpGet]
+    public List<IotDriverConfigDto> DriverConfigs([FromQuery] string assembleName)
+    {
+        return DriverProvider?.GetDriverConfigs(assembleName) ?? new List<IotDriverConfigDto>();
+    }
+
+    /// <summary>
+    /// 驱动方法
+    /// </summary>
+    [DisplayName("驱动方法"), HttpGet]
+    public List<IotDriverMethodDto> DriverMethods([FromQuery] string assembleName)
+    {
+        return DriverProvider?.GetDriverMethods(assembleName) ?? new List<IotDriverMethodDto>();
+    }
+
+    /// <summary>
+    /// 重新扫描驱动目录
+    /// </summary>
+    [DisplayName("重新加载驱动"), ApiDescriptionSettings(Name = "Reload"), HttpPost]
+    public void Reload()
+    {
+        DriverProvider?.ReloadDrivers();
     }
 
     /// <summary>

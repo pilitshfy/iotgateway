@@ -1,10 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Linq;
-using System.Net;
-using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
 using MQTTnet.Protocol;
@@ -13,9 +10,10 @@ using MQTTnet.Server;
 namespace Admin.NET.Web.Core;
 
 /// <summary>
-/// IoT MQTT Broker（默认监听 1888 端口）
+/// IoT MQTT Broker（监听 1888 端口，TCP 与 WebSocket 共用）
+/// 由 MQTTnet.AspNetCore 托管，本类负责事件与消息注入。
 /// </summary>
-public class IotMqttServer : BackgroundService
+public class IotMqttServer
 {
     private readonly ILogger<IotMqttServer> _logger;
     private MqttServer _server;
@@ -26,27 +24,31 @@ public class IotMqttServer : BackgroundService
     }
 
     /// <summary>
+    /// 收到客户端发布的消息（供 RPC 等服务订阅）
+    /// </summary>
+    public event Func<string, string, Task> MessageReceived;
+
+    /// <summary>
     /// 客户端订阅关系：ClientId -> Topics
     /// </summary>
     public ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> ClientTopics { get; } = new();
 
     public bool IsRunning => _server != null;
 
-    public int Port { get; private set; } = 1888;
+    public int Port { get; } = 1888;
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    /// <summary>
+    /// 绑定托管服务器并挂载事件
+    /// </summary>
+    public void Attach(MqttServer server)
     {
-        var options = new MqttServerOptionsBuilder()
-            .WithDefaultEndpoint()
-            .WithDefaultEndpointBoundIPAddress(IPAddress.Any)
-            .WithDefaultEndpointPort(Port)
-            .Build();
+        if (server == null || ReferenceEquals(_server, server)) return;
 
-        _server = new MqttFactory().CreateMqttServer(options);
+        _server = server;
 
         _server.StartedAsync += _ =>
         {
-            _logger.LogInformation("IoT MQTT Broker 已启动，端口 {Port}", Port);
+            _logger.LogInformation("IoT MQTT Broker 已启动，TCP/WebSocket 端口 {Port}", Port);
             return Task.CompletedTask;
         };
 
@@ -93,33 +95,34 @@ public class IotMqttServer : BackgroundService
 
         _server.ValidatingConnectionAsync += e =>
         {
-            // 内部客户端（WebSocket 调试）直接放行；外部客户端暂不做账号校验，保持与原网关一致
+            // 内部客户端（WebSocket 调试）直接放行；外部客户端保持与原网关一致
             e.ReasonCode = MqttConnectReasonCode.Success;
             return Task.CompletedTask;
         };
 
-        await _server.StartAsync();
-
-        try
+        _server.InterceptingPublishAsync += e =>
         {
-            await Task.Delay(Timeout.Infinite, stoppingToken);
-        }
-        catch (OperationCanceledException)
-        {
-            // 正常退出
-        }
-    }
+            var handler = MessageReceived;
+            if (handler == null) return Task.CompletedTask;
 
-    public override async Task StopAsync(CancellationToken cancellationToken)
-    {
-        if (_server != null)
-        {
-            await _server.StopAsync();
-            _server.Dispose();
-            _server = null;
-        }
+            var topic = e.ApplicationMessage.Topic;
+            var payload = e.ApplicationMessage.ConvertPayloadToString();
+            if (string.IsNullOrWhiteSpace(topic)) return Task.CompletedTask;
 
-        await base.StopAsync(cancellationToken);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await handler(topic, payload);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "处理 MQTT 消息失败：{Topic}", topic);
+                }
+            });
+
+            return Task.CompletedTask;
+        };
     }
 
     /// <summary>

@@ -141,6 +141,31 @@ public class IotDeviceService : IDynamicApiController, ITransient
     }
 
     /// <summary>
+    /// 仪表盘统计
+    /// </summary>
+    [DisplayName("仪表盘统计"), HttpGet]
+    public async Task<object> Stats()
+    {
+        var deviceCount = await _deviceRep.AsQueryable().Where(u => u.DeviceTypeEnum == IotDeviceTypeEnum.Device).CountAsync();
+        var groupCount = await _deviceRep.AsQueryable().Where(u => u.DeviceTypeEnum == IotDeviceTypeEnum.Group).CountAsync();
+        var variableCount = await _variableRep.AsQueryable().CountAsync();
+        var configCount = await _configRep.AsQueryable().CountAsync();
+        var driverCount = await _driverRep.AsQueryable().CountAsync();
+        var online = Runtime?.GetRunningDeviceIds()?.Count ?? 0;
+
+        return new
+        {
+            DeviceCount = deviceCount,
+            GroupCount = groupCount,
+            OnlineCount = online,
+            OfflineCount = Math.Max(deviceCount - online, 0),
+            VariableCount = variableCount,
+            ConfigCount = configCount,
+            DriverCount = driverCount
+        };
+    }
+
+    /// <summary>
     /// 驱动下拉列表
     /// </summary>
     [DisplayName("驱动下拉列表"), HttpGet]

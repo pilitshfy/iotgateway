@@ -22,6 +22,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using MQTTnet.AspNetCore;
 using OnceMi.AspNetCore.OSS;
 using Scalar.AspNetCore;
 using SixLabors.ImageSharp.Web.DependencyInjection;
@@ -46,15 +47,26 @@ public class Startup : AppStartup
         // 配置选项
         services.AddProjectOptions();
 
-        // IoT MQTT Broker
+        // IoT MQTT Broker（TCP + WebSocket 共用 1888 端口，由 MQTTnet.AspNetCore 托管）
         services.AddSingleton<IotMqttServer>();
-        services.AddHostedService(sp => sp.GetRequiredService<IotMqttServer>());
+        services.AddHostedMqttServer(options => options.WithoutDefaultEndpoint())
+            .AddMqttConnectionHandler()
+            .AddMqttWebSocketServerAdapter()
+            .AddConnections();
 
         // IoT 驱动与设备采集运行时
         services.AddSingleton<IotDriverManager>();
+        services.AddSingleton<IIotDriverProvider>(sp => sp.GetRequiredService<IotDriverManager>());
         services.AddSingleton<IotDeviceRuntimeService>();
         services.AddSingleton<IIotDeviceRuntime>(sp => sp.GetRequiredService<IotDeviceRuntimeService>());
         services.AddHostedService(sp => sp.GetRequiredService<IotDeviceRuntimeService>());
+
+        // IoT 上游平台与 RPC
+        services.AddSingleton<IotPlatformService>();
+        services.AddSingleton<IIotPlatformRuntime>(sp => sp.GetRequiredService<IotPlatformService>());
+        services.AddHostedService(sp => sp.GetRequiredService<IotPlatformService>());
+        services.AddSingleton<IotRpcRuntime>();
+        services.AddHostedService(sp => sp.GetRequiredService<IotRpcRuntime>());
 
         // 缓存注册
         services.AddCache();
@@ -344,6 +356,9 @@ public class Startup : AppStartup
         // 启用多语言，必须在 UseRouting 之前
         app.UseAppLocalization();
 
+        // 启用 WebSocket（MQTT over WebSocket：/mqtt）
+        app.UseWebSockets();
+
         // 路由注册
         app.UseRouting();
 
@@ -397,8 +412,14 @@ public class Startup : AppStartup
 //        app.UseAutoVersionUpdate();
 //#endif
 
+        // 绑定 MQTT Broker 事件（TCP 与 WebSocket 共用同一实例）
+        app.UseMqttServer(server => app.ApplicationServices.GetRequiredService<IotMqttServer>().Attach(server));
+
         app.UseEndpoints(endpoints =>
         {
+            // MQTT WebSocket 端点（ws://host:1888/mqtt）
+            endpoints.MapMqtt("/mqtt");
+
             // 配置 Scalar 第三方 UI 集成（路由前缀一致代表独立，不同则代表共存）
             if (App.GetConfig<bool>("AppSettings:InjectSpecificationDocument", true))
             {

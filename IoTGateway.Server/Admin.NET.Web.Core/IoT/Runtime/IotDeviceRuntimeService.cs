@@ -22,6 +22,7 @@ public class IotDeviceRuntimeService : BackgroundService, IIotDeviceRuntime
     private readonly ISqlSugarClient _db;
     private readonly IotDriverManager _driverManager;
     private readonly IotMqttServer _mqttServer;
+    private readonly IotPlatformService _platformService;
     private readonly ILogger<IotDeviceRuntimeService> _logger;
 
     private readonly ConcurrentDictionary<long, IotDeviceThread> _threads = new();
@@ -31,11 +32,13 @@ public class IotDeviceRuntimeService : BackgroundService, IIotDeviceRuntime
         ISqlSugarClient db,
         IotDriverManager driverManager,
         IotMqttServer mqttServer,
+        IotPlatformService platformService,
         ILogger<IotDeviceRuntimeService> logger)
     {
         _db = db;
         _driverManager = driverManager;
         _mqttServer = mqttServer;
+        _platformService = platformService;
         _logger = logger;
     }
 
@@ -121,6 +124,74 @@ public class IotDeviceRuntimeService : BackgroundService, IIotDeviceRuntime
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// 正在运行的设备Id
+    /// </summary>
+    public List<long> GetRunningDeviceIds()
+    {
+        return _threads.Where(x => x.Value.Device.AutoStart && x.Value.Driver.IsConnected)
+            .Select(x => x.Key).ToList();
+    }
+
+    /// <summary>
+    /// 执行 RPC（写入设备变量）
+    /// </summary>
+    public async Task<IotRpcResultDto> ExecuteRpcAsync(IotRpcRequestDto request)
+    {
+        var result = new IotRpcResultDto
+        {
+            DeviceName = request?.DeviceName,
+            Method = request?.Method,
+            RequestId = request?.RequestId,
+            IsSuccess = false
+        };
+
+        var thread = _threads.Values.FirstOrDefault(x =>
+            x.Device.DeviceName == request?.DeviceName ||
+            (x.Device.DeviceVariables != null && x.Device.DeviceVariables.Any(v => v.Alias == request.DeviceName)));
+
+        var startTime = DateTime.Now;
+        try
+        {
+            if (thread == null)
+            {
+                result.Description = $"未找到设备：{request?.DeviceName}";
+            }
+            else
+            {
+                var response = await thread.ExecuteRpcAsync(request.DeviceName, request.Method, request.RequestId, request.Params);
+                result.IsSuccess = response.IsSuccess;
+                result.Description = response.Description;
+            }
+        }
+        catch (Exception ex)
+        {
+            result.Description = ex.Message;
+            _logger.LogError(ex, "执行 RPC 失败：{Device}/{Method}", request?.DeviceName, request?.Method);
+        }
+
+        try
+        {
+            await _db.Insertable(new IotRpcLog
+            {
+                DeviceId = thread?.Device.Id,
+                StartTime = startTime,
+                EndTime = DateTime.Now,
+                Method = request?.Method,
+                RpcSide = IotRpcSideEnum.ServerSide,
+                Params = request?.Params == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(request.Params),
+                IsSuccess = result.IsSuccess,
+                Description = result.Description
+            }).ExecuteCommandAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "记录 RPC 日志失败");
+        }
+
+        return result;
+    }
+
     private async Task BuildAndStartAsync(long deviceId)
     {
         var device = await _db.Queryable<IotDevice>().InSingleAsync(deviceId);
@@ -149,7 +220,7 @@ public class IotDeviceRuntimeService : BackgroundService, IIotDeviceRuntime
 
         ApplyConfigs(driver, configs);
 
-        var thread = new IotDeviceThread(device, driver, _mqttServer, _logger);
+        var thread = new IotDeviceThread(device, driver, _mqttServer, _platformService, _logger);
         _threads[deviceId] = thread;
         thread.Start();
 
