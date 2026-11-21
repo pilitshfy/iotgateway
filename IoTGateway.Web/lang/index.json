@@ -1,0 +1,163 @@
+{
+	"i5rv634": {
+		"zh-cn": "账号登录",
+		"zh-hk": "帳號登入",
+		"zh-tw": "帳號登入",
+		"en": "Account Login",
+		"it": "Accesso Account"
+	},
+	"shgaim5": {
+		"zh-cn": "手机号登录",
+		"zh-hk": "手機號登入",
+		"zh-tw": "手機號碼登入",
+		"en": "Mobile Login",
+		"it": "Accesso Cellulare"
+	},
+	"f6vhf74": {
+		"zh-cn": "用户注册",
+		"zh-hk": "用戶註冊",
+		"zh-tw": "使用者註冊",
+		"en": "User Registration",
+		"it": "Registrazione Utente"
+	},
+	"e34j054": {
+		"zh-cn": "注册账号",
+		"zh-hk": "註冊帳號",
+		"zh-tw": "註冊帳號",
+		"en": "Register Account",
+		"it": "Registra Account"
+	},
+	"fcm8nf4": {
+		"zh-cn": "登录账号",
+		"zh-hk": "登入帳號",
+		"zh-tw": "登入帳號",
+		"en": "Login Account",
+		"it": "Accedi all'Account"
+	},
+	"2eh64x5": {
+		"zh-cn": "请选择租户",
+		"zh-hk": "請選擇租戶",
+		"zh-tw": "請選擇租戶",
+		"en": "Please select tenant",
+		"it": "Seleziona tenant"
+	},
+	"7ji3y96": {
+		"zh-cn": "请输入手机号",
+		"zh-hk": "請輸入手機號",
+		"zh-tw": "請輸入手機號碼",
+		"en": "Please enter mobile number",
+		"it": "Inserisci numero cellulare"
+	},
+	"7b32n16": {
+		"zh-cn": "请输入验证码",
+		"zh-hk": "請輸入驗證碼",
+		"zh-tw": "請輸入驗證碼",
+		"en": "Please enter verification code",
+		"it": "Inserisci codice di verifica"
+	},
+	"2j1oau5": {
+		"zh-cn": "请输入账号",
+		"zh-hk": "請輸入帳號",
+		"zh-tw": "請輸入帳號",
+		"en": "Please enter account",
+		"it": "Inserisci account"
+	},
+	"2j9vj05": {
+		"zh-cn": "请输入密码",
+		"zh-hk": "請輸入密碼",
+		"zh-tw": "請輸入密碼",
+		"en": "Please enter password",
+		"it": "Inserisci password"
+	},
+	"ki6fos7": {
+		"zh-cn": "大写锁定已打开",
+		"zh-hk": "大寫鎖定已打開",
+		"zh-tw": "大寫鎖定已開啟",
+		"en": "Caps Lock is on",
+		"it": "Bloc Maiuscole attivo"
+	},
+	"rjfne37": {
+		"zh-cn": "请按住滑块拖动",
+		"zh-hk": "請按住滑塊拖動",
+		"zh-tw": "請按住滑塊拖曳",
+		"en": "Hold and drag the slider",
+		"it": "Tieni premuto e trascina il cursore"
+	},
+	"k2wswy4": {
+		"zh-cn": "验证通过",
+		"zh-hk": "驗證通過",
+		"zh-tw": "驗證通過",
+		"en": "Verification passed",
+		"it": "Verifica superata"
+	},
+	"9pamgib": {
+		"zh-cn": "登录失败，请检查账号！",
+		"zh-hk": "登入失敗，請檢查帳號！",
+		"zh-tw": "登入失敗，請檢查帳號！",
+		"en": "Login failed, please check account!",
+		"it": "Accesso fallito, controlla l'account!"
+	},
+	"qca16ra": {
+		"zh-cn": "抱歉，您没有登录权限",
+		"zh-hk": "抱歉，您沒有登入權限",
+		"zh-tw": "抱歉，您沒有登入權限",
+		"en": "Sorry, you have no login permission",
+		"it": "Spiacenti, non hai i permessi di accesso"
+	},
+	"hdaeo3": {
+		"zh-cn": "登 录",
+		"zh-hk": "登 入",
+		"zh-tw": "登 入",
+		"en": "Login",
+		"it": "Accedi"
+	},
+	"t09mz15": {
+		"zh-cn": "获取验证码",
+		"zh-hk": "獲取驗證碼",
+		"zh-tw": "取得驗證碼",
+		"en": "Get Verification Code",
+		"it": "Ottieni Codice di Verifica"
+	},
+	"s74mzp1t": {
+		"zh-cn": "* 温馨提示：建议使用谷歌、Microsoft Edge，版本 79.0.1072.62 及以上浏览器，360浏览器请使用极速模式",
+		"zh-hk": "* 溫馨提示：建議使用谷歌、Microsoft Edge，版本 79.0.1072.62 及以上瀏覽器，360瀏覽器請使用極速模式",
+		"zh-tw": "* 溫馨提示：建議使用谷歌、Microsoft Edge，版本 79.0.1072.62 及以上瀏覽器，360瀏覽器請使用極速模式",
+		"en": "* Tip: Recommended browsers are Google Chrome, Microsoft Edge version 79.0.1072.62 or above. For 360 Browser, use Speed Mode.",
+		"it": "* Suggerimento: browser consigliati Google Chrome, Microsoft Edge versione 79.0.1072.62 o superiore. Per 360 Browser, usa la modalità Velocità."
+	},
+	"b7gq3y5": {
+		"zh-cn": "欢迎回来！",
+		"zh-hk": "歡迎回來！",
+		"zh-tw": "歡迎回來！",
+		"en": "Welcome back!",
+		"it": "Bentornato!"
+	},
+	"cm4moka": {
+		"zh-cn": "请正确输入手机号码！",
+		"zh-hk": "請正確輸入手機號碼！",
+		"zh-tw": "請正確輸入手機號碼！",
+		"en": "Please enter a valid phone number!",
+		"it": "Inserisci un numero di telefono valido!"
+	},
+	"r57mfy7": {
+		"zh-cn": " 秒后重新获取",
+		"zh-hk": " 秒後重新獲取",
+		"zh-tw": " 秒後重新取得",
+		"en": " seconds to retry",
+		"it": " secondi per riprovare"
+	},
+	"8s9vsx8": {
+		"zh-cn": " 没有账号? 去",
+		"zh-hk": "沒有帳號? 前往",
+		"zh-tw": "沒有帳號? 前往",
+		"en": "No account? Go to",
+		"it": "Nessun account? Vai a"
+	},
+	"s60ej68": {
+		"zh-cn": " 已有账户? 去",
+		"zh-hk": "已有帳戶? 前往",
+		"zh-tw": "已有帳戶? 前往",
+		"en": "Already have an account? Go to",
+		"it": "Già registrato? Vai a"
+	}
+}

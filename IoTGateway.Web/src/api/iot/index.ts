@@ -1,0 +1,75 @@
+import request from '/@/utils/request';
+
+/**
+ * IoT 设备
+ */
+export const iotDeviceApi = {
+	page: (data: any) => request({ url: '/api/iotDevice/page', method: 'post', data }),
+	list: (params?: any) => request({ url: '/api/iotDevice/list', method: 'get', params }),
+	detail: (id: number) => request({ url: '/api/iotDevice/detail', method: 'get', params: { id } }),
+	add: (data: any) => request({ url: '/api/iotDevice/add', method: 'post', data }),
+	update: (data: any) => request({ url: '/api/iotDevice/update', method: 'post', data }),
+	delete: (id: number) => request({ url: '/api/iotDevice/delete', method: 'post', data: { id } }),
+	batchDelete: (ids: number[]) => request({ url: '/api/iotDevice/batchDelete', method: 'post', data: { ids } }),
+	driverList: () => request({ url: '/api/iotDevice/driverList', method: 'get' }),
+};
+
+/**
+ * IoT 驱动
+ */
+export const iotDriverApi = {
+	page: (data: any) => request({ url: '/api/iotDriver/page', method: 'post', data }),
+	list: () => request({ url: '/api/iotDriver/list', method: 'get' }),
+	add: (data: any) => request({ url: '/api/iotDriver/add', method: 'post', data }),
+	update: (data: any) => request({ url: '/api/iotDriver/update', method: 'post', data }),
+	delete: (id: number) => request({ url: '/api/iotDriver/delete', method: 'post', data: { id } }),
+	batchDelete: (ids: number[]) => request({ url: '/api/iotDriver/batchDelete', method: 'post', data: { ids } }),
+};
+
+/**
+ * 设备通讯配置
+ */
+export const iotDeviceConfigApi = {
+	page: (data: any) => request({ url: '/api/iotDeviceConfig/page', method: 'post', data }),
+	list: (deviceId: number) => request({ url: '/api/iotDeviceConfig/list', method: 'get', params: { deviceId } }),
+	add: (data: any) => request({ url: '/api/iotDeviceConfig/add', method: 'post', data }),
+	update: (data: any) => request({ url: '/api/iotDeviceConfig/update', method: 'post', data }),
+	delete: (id: number) => request({ url: '/api/iotDeviceConfig/delete', method: 'post', data: { id } }),
+};
+
+/**
+ * 设备变量
+ */
+export const iotDeviceVariableApi = {
+	page: (data: any) => request({ url: '/api/iotDeviceVariable/page', method: 'post', data }),
+	list: (deviceId: number) => request({ url: '/api/iotDeviceVariable/list', method: 'get', params: { deviceId } }),
+	add: (data: any) => request({ url: '/api/iotDeviceVariable/add', method: 'post', data }),
+	update: (data: any) => request({ url: '/api/iotDeviceVariable/update', method: 'post', data }),
+	delete: (id: number) => request({ url: '/api/iotDeviceVariable/delete', method: 'post', data: { id } }),
+};
+
+/**
+ * 系统传输配置
+ */
+export const iotSystemConfigApi = {
+	get: () => request({ url: '/api/iotSystemConfig/get', method: 'get' }),
+	save: (data: any) => request({ url: '/api/iotSystemConfig/save', method: 'post', data }),
+};
+
+/**
+ * RPC 日志
+ */
+export const iotRpcLogApi = {
+	page: (data: any) => request({ url: '/api/iotRpcLog/page', method: 'post', data }),
+	delete: (id: number) => request({ url: '/api/iotRpcLog/delete', method: 'post', data: { id } }),
+	batchDelete: (ids: number[]) => request({ url: '/api/iotRpcLog/batchDelete', method: 'post', data: { ids } }),
+	clear: () => request({ url: '/api/iotRpcLog/clear', method: 'post' }),
+};
+
+/**
+ * MQTT 运行状态
+ */
+export const iotMqttApi = {
+	status: () => request({ url: '/api/iotMqtt/status', method: 'get' }),
+	publish: (data: any) => request({ url: '/api/iotMqtt/publish', method: 'post', data }),
+};
