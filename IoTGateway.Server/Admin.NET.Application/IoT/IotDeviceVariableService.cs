@@ -27,11 +27,13 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
     [DisplayName("变量分页列表"), HttpPost]
     public async Task<SqlSugarPagedList<IotDeviceVariable>> Page([FromBody] IotDeviceVariablePageInput input)
     {
-        return await _variableRep.AsQueryable()
+        var paged = await _variableRep.AsQueryable()
             .WhereIF(input.DeviceId.HasValue, u => u.DeviceId == input.DeviceId)
             .WhereIF(!string.IsNullOrWhiteSpace(input.Keyword), u => u.Name.Contains(input.Keyword))
             .OrderBy(u => new { u.Index, u.Name })
             .ToPagedListAsync(input.Page, input.PageSize);
+        FillRuntimeValues(paged.Items);
+        return paged;
     }
 
     /// <summary>
@@ -40,10 +42,32 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
     [DisplayName("变量列表"), HttpGet]
     public async Task<List<IotDeviceVariable>> List([FromQuery] long deviceId)
     {
-        return await _variableRep.AsQueryable()
+        var list = await _variableRep.AsQueryable()
             .Where(u => u.DeviceId == deviceId)
             .OrderBy(u => new { u.Index, u.Name })
             .ToListAsync();
+        FillRuntimeValues(list);
+        return list;
+    }
+
+    /// <summary>
+    /// 批量写入变量值
+    /// </summary>
+    [DisplayName("批量写入变量"), ApiDescriptionSettings(Name = "Write"), HttpPost]
+    public async Task<IotRpcResultDto> Write([FromBody] IotVariableWriteInput input)
+    {
+        if (input.Values == null || input.Values.Count == 0) throw Oops.Oh("请至少填写一个变量值");
+        var device = await _variableRep.Context.Queryable<IotDevice>().InSingleAsync(input.DeviceId)
+            ?? throw Oops.Oh("设备不存在");
+        if (Runtime == null) throw Oops.Oh("设备运行时未启动");
+
+        return await Runtime.ExecuteRpcAsync(new IotRpcRequestDto
+        {
+            DeviceName = device.DeviceName,
+            Method = "write",
+            RequestId = Guid.NewGuid().ToString(),
+            Params = input.Values
+        });
     }
 
     /// <summary>
@@ -110,5 +134,26 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
         if (Runtime != null)
             foreach (var deviceId in deviceIds)
                 await Runtime.RestartDeviceAsync(deviceId);
+    }
+
+    private void FillRuntimeValues(IEnumerable<IotDeviceVariable> variables)
+    {
+        if (Runtime == null) return;
+        foreach (var group in variables.GroupBy(u => u.DeviceId))
+        {
+            var runtimeVariables = Runtime.GetDeviceVariables(group.Key);
+            foreach (var variable in group)
+            {
+                var current = runtimeVariables.FirstOrDefault(u => u.Id == variable.Id);
+                if (current == null) continue;
+                variable.Value = current.Value;
+                variable.CookedValue = current.CookedValue;
+                variable.Message = current.Message;
+                variable.Timestamp = current.Timestamp;
+                variable.StatusType = current.StatusType;
+                variable.Values = current.Values;
+                variable.CookedValues = current.CookedValues;
+            }
+        }
     }
 }

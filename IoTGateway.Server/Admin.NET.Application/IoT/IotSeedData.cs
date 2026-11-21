@@ -44,6 +44,7 @@ public class IotTenantMenuSeedData : ISqlSugarEntitySeedData<SysTenantMenu>
 /// <summary>
 /// IoT 传输配置种子数据
 /// </summary>
+[IgnoreUpdateSeed]
 public class IotSystemConfigSeedData : ISqlSugarEntitySeedData<IotSystemConfig>
 {
     public IEnumerable<IotSystemConfig> HasData()

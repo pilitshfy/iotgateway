@@ -28,6 +28,10 @@ public interface IIotPlatformHandler
 
     Task PublishTelemetryAsync(IMqttClient client, string deviceName, IotDevice device, Dictionary<string, object> values);
 
+    Task UploadAttributeAsync(IMqttClient client, string deviceName, object attributes);
+
+    Task RequestAttributes(IMqttClient client, string deviceName, bool anySide, params string[] keys);
+
     Task DeviceConnectedAsync(IMqttClient client, string deviceName);
 
     Task DeviceDisconnectedAsync(IMqttClient client, string deviceName);
@@ -133,6 +137,23 @@ public class ThingsBoardPlatformHandler : IIotPlatformHandler
         return PlatformPublish.SendAsync(client, "v1/gateway/telemetry", telemetry);
     }
 
+    public Task UploadAttributeAsync(IMqttClient client, string deviceName, object attributes)
+    {
+        return PlatformPublish.SendAsync(client, $"devices/{deviceName}/attributes", attributes);
+    }
+
+    public Task RequestAttributes(IMqttClient client, string deviceName, bool anySide, params string[] keys)
+    {
+        if (keys == null || keys.Length == 0) return Task.CompletedTask;
+        return PlatformPublish.SendAsync(client, "v1/gateway/attributes/request", new Dictionary<string, object>
+        {
+            { "id", Guid.NewGuid().ToString() },
+            { "device", deviceName },
+            { "client", true },
+            { "key", keys[0] }
+        }, MqttQualityOfServiceLevel.ExactlyOnce);
+    }
+
     public Task DeviceConnectedAsync(IMqttClient client, string deviceName)
     {
         return PlatformPublish.SendAsync(client, "v1/gateway/connect", new Dictionary<string, string> { { "device", deviceName } });
@@ -191,6 +212,10 @@ public class ThingsCloudPlatformHandler : IIotPlatformHandler
         var payload = new Dictionary<string, object> { { deviceName, values } };
         return PlatformPublish.SendAsync(client, "gateway/attributes", payload, MqttQualityOfServiceLevel.ExactlyOnce);
     }
+
+    public Task UploadAttributeAsync(IMqttClient client, string deviceName, object attributes) => Task.CompletedTask;
+
+    public Task RequestAttributes(IMqttClient client, string deviceName, bool anySide, params string[] keys) => Task.CompletedTask;
 
     public Task DeviceConnectedAsync(IMqttClient client, string deviceName)
     {
@@ -260,6 +285,19 @@ public class IoTSharpPlatformHandler : IIotPlatformHandler
         return PlatformPublish.SendAsync(client, $"devices/{deviceName}/telemetry", values);
     }
 
+    public Task UploadAttributeAsync(IMqttClient client, string deviceName, object attributes) => Task.CompletedTask;
+
+    public async Task RequestAttributes(IMqttClient client, string deviceName, bool anySide, params string[] keys)
+    {
+        var id = Guid.NewGuid().ToString();
+        await client.SubscribeAsync($"devices/{deviceName}/attributes/response/{id}", MqttQualityOfServiceLevel.ExactlyOnce);
+        var payload = new Dictionary<string, string>
+        {
+            { anySide ? "anySide" : "server", string.Join(",", keys ?? Array.Empty<string>()) }
+        };
+        await PlatformPublish.SendAsync(client, $"devices/{deviceName}/attributes/request/{id}", payload, MqttQualityOfServiceLevel.ExactlyOnce);
+    }
+
     public Task DeviceConnectedAsync(IMqttClient client, string deviceName)
     {
         return PlatformPublish.SendAsync(client, "v1/gateway/connect", new Dictionary<string, string> { { "device", deviceName } });
@@ -303,6 +341,10 @@ public class ThingsPanelPlatformHandler : IIotPlatformHandler
         };
         return PlatformPublish.SendAsync(client, "gateway/telemetry", payload);
     }
+
+    public Task UploadAttributeAsync(IMqttClient client, string deviceName, object attributes) => Task.CompletedTask;
+
+    public Task RequestAttributes(IMqttClient client, string deviceName, bool anySide, params string[] keys) => Task.CompletedTask;
 
     public Task DeviceConnectedAsync(IMqttClient client, string deviceName)
     {

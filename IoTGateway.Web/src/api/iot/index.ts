@@ -11,6 +11,14 @@ export const iotDeviceApi = {
 	update: (data: any) => request({ url: '/api/iotDevice/update', method: 'post', data }),
 	delete: (id: number) => request({ url: '/api/iotDevice/delete', method: 'post', data: { id } }),
 	batchDelete: (ids: number[]) => request({ url: '/api/iotDevice/batchDelete', method: 'post', data: { ids } }),
+	copy: (data: { id: number; count: number }) => request({ url: '/api/iotDevice/copy', method: 'post', data }),
+	requestAttributes: (id: number) => request({ url: '/api/iotDevice/requestAttributes', method: 'post', data: { id } }),
+	export: () => request({ url: '/api/iotDevice/export', method: 'get', responseType: 'blob' }),
+	importBackup: (file: File) => {
+		const data = new FormData();
+		data.append('file', file);
+		return request({ url: '/api/iotDevice/import', method: 'post', data });
+	},
 	driverList: () => request({ url: '/api/iotDevice/driverList', method: 'get' }),
 	stats: () => request({ url: '/api/iotDevice/stats', method: 'get' }),
 };
@@ -50,6 +58,7 @@ export const iotDeviceVariableApi = {
 	list: (deviceId: number) => request({ url: '/api/iotDeviceVariable/list', method: 'get', params: { deviceId } }),
 	add: (data: any) => request({ url: '/api/iotDeviceVariable/add', method: 'post', data }),
 	update: (data: any) => request({ url: '/api/iotDeviceVariable/update', method: 'post', data }),
+	write: (data: { deviceId: number; values: Record<string, any> }) => request({ url: '/api/iotDeviceVariable/write', method: 'post', data }),
 	delete: (id: number) => request({ url: '/api/iotDeviceVariable/delete', method: 'post', data: { id } }),
 };
 

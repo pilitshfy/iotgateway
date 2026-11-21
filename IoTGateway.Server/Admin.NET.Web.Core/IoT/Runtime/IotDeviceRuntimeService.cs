@@ -134,10 +134,23 @@ public class IotDeviceRuntimeService : BackgroundService, IIotDeviceRuntime
     }
 
     /// <summary>
+    /// 获取采集线程中的实时变量
+    /// </summary>
+    public List<IotDeviceVariable> GetDeviceVariables(long deviceId)
+    {
+        return _threads.TryGetValue(deviceId, out var thread)
+            ? thread.Device.DeviceVariables
+            : new List<IotDeviceVariable>();
+    }
+
+    /// <summary>
     /// 执行 RPC（写入设备变量）
     /// </summary>
     public async Task<IotRpcResultDto> ExecuteRpcAsync(IotRpcRequestDto request)
     {
+        if (request?.Params != null)
+            request.Params = request.Params.ToDictionary(u => u.Key, u => NormalizeRpcValue(u.Value));
+
         var result = new IotRpcResultDto
         {
             DeviceName = request?.DeviceName,
@@ -190,6 +203,33 @@ public class IotDeviceRuntimeService : BackgroundService, IIotDeviceRuntime
         }
 
         return result;
+    }
+
+    private static object NormalizeRpcValue(object value)
+    {
+        if (value is not System.Text.Json.JsonElement element) return value;
+        switch (element.ValueKind)
+        {
+            case System.Text.Json.JsonValueKind.Object:
+                return element.EnumerateObject().ToDictionary(u => u.Name, u => NormalizeRpcValue(u.Value));
+            case System.Text.Json.JsonValueKind.Array:
+                return element.EnumerateArray().Select(u => NormalizeRpcValue(u)).ToList();
+            case System.Text.Json.JsonValueKind.String:
+                return element.GetString();
+            case System.Text.Json.JsonValueKind.Number:
+                if (element.TryGetInt64(out var integer)) return integer;
+                if (element.TryGetDecimal(out var decimalValue)) return decimalValue;
+                return element.GetDouble();
+            case System.Text.Json.JsonValueKind.True:
+                return true;
+            case System.Text.Json.JsonValueKind.False:
+                return false;
+            case System.Text.Json.JsonValueKind.Null:
+            case System.Text.Json.JsonValueKind.Undefined:
+                return null;
+            default:
+                return element.ToString();
+        }
     }
 
     private async Task BuildAndStartAsync(long deviceId)

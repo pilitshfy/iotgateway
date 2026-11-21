@@ -35,6 +35,10 @@
 					<el-button type="primary" @click="loadData">查询</el-button>
 					<el-button @click="resetQuery">重置</el-button>
 					<el-button type="success" @click="openAdd">新增设备</el-button>
+					<el-button @click="exportBackup">导出备份</el-button>
+					<el-upload :auto-upload="false" :show-file-list="false" accept=".xlsx" :on-change="importBackup" style="display: inline-block; margin-left: 12px">
+						<el-button>导入备份</el-button>
+					</el-upload>
 				</el-form-item>
 			</el-form>
 
@@ -56,10 +60,12 @@
 				<el-table-column prop="enforcePeriod" label="归档周期(ms)" width="130" />
 				<el-table-column prop="cmdPeriod" label="指令间隔(ms)" width="130" />
 				<el-table-column prop="description" label="描述" min-width="140" show-overflow-tooltip />
-				<el-table-column label="操作" width="200" fixed="right">
+				<el-table-column label="操作" width="330" fixed="right">
 					<template #default="{ row }">
 						<el-button link type="primary" @click="openEdit(row)">编辑</el-button>
 						<el-button link type="primary" @click="openDetail(row)">详情</el-button>
+						<el-button v-if="row.deviceTypeEnum !== 0" link type="primary" @click="copyDevice(row)">复制</el-button>
+						<el-button v-if="row.deviceTypeEnum !== 0" link type="primary" @click="requestAttributes(row)">获取属性</el-button>
 						<el-button link type="danger" @click="remove(row)">删除</el-button>
 					</template>
 				</el-table-column>
@@ -123,7 +129,7 @@
 			</template>
 		</el-dialog>
 
-		<el-drawer v-model="detailVisible" title="设备详情" size="60%">
+		<el-drawer v-model="detailVisible" title="设备详情" size="80%">
 			<el-descriptions :column="2" border>
 				<el-descriptions-item label="设备名称">{{ detail.deviceName }}</el-descriptions-item>
 				<el-descriptions-item label="驱动">{{ detail.driverName }}</el-descriptions-item>
@@ -153,6 +159,8 @@
 
 			<el-divider content-position="left">变量</el-divider>
 			<div class="iot-section-toolbar">
+				<el-button size="small" @click="refreshDetail">刷新实时值</el-button>
+				<el-button type="success" size="small" @click="openBatchWrite">批量写入</el-button>
 				<el-button type="primary" size="small" @click="openVariableAdd">新增变量</el-button>
 			</div>
 			<el-table :data="detail.deviceVariables || []" border size="small">
@@ -166,6 +174,14 @@
 					<template #default="{ row }">{{ protectLabel(row.protectType) }}</template>
 				</el-table-column>
 				<el-table-column prop="method" label="方法" min-width="120" show-overflow-tooltip />
+				<el-table-column label="实时值" min-width="110" show-overflow-tooltip>
+					<template #default="{ row }">{{ row.cookedValue ?? row.value ?? '-' }}</template>
+				</el-table-column>
+				<el-table-column label="状态" width="110">
+					<template #default="{ row }"><el-tag :type="Number(row.statusType) === 0 ? 'success' : 'danger'">{{ statusLabel(row.statusType) }}</el-tag></template>
+				</el-table-column>
+				<el-table-column prop="timestamp" label="采集时间" min-width="155" />
+				<el-table-column prop="message" label="状态信息" min-width="120" show-overflow-tooltip />
 				<el-table-column label="上传" width="70">
 					<template #default="{ row }">{{ row.isUpload ? '是' : '否' }}</template>
 				</el-table-column>
@@ -202,6 +218,23 @@
 			<template #footer>
 				<el-button @click="configDialogVisible = false">取消</el-button>
 				<el-button type="primary" :loading="configSaving" @click="saveConfig">保存</el-button>
+			</template>
+		</el-dialog>
+
+		<el-dialog v-model="writeDialogVisible" title="批量写入变量" width="620px" destroy-on-close>
+			<el-alert title="仅列出读写和只写变量；留空的变量不会写入。" type="info" :closable="false" style="margin-bottom: 12px" />
+			<el-table :data="writeRows" border size="small" max-height="420">
+				<el-table-column prop="name" label="变量名" min-width="150" />
+				<el-table-column label="写入值" min-width="220">
+					<template #default="{ row }"><el-input v-model="row.value" placeholder="请输入写入值" /></template>
+				</el-table-column>
+				<el-table-column label="类型" width="110">
+					<template #default="{ row }">{{ dataTypeLabel(row.dataType) }}</template>
+				</el-table-column>
+			</el-table>
+			<template #footer>
+				<el-button @click="writeDialogVisible = false">取消</el-button>
+				<el-button type="primary" :loading="writing" @click="writeVariables">执行写入</el-button>
 			</template>
 		</el-dialog>
 
@@ -277,6 +310,9 @@ const stats = ref({});
 const dialogVisible = ref(false);
 const detailVisible = ref(false);
 const detail = ref({});
+const writeDialogVisible = ref(false);
+const writing = ref(false);
+const writeRows = ref([]);
 
 const configDialogVisible = ref(false);
 const configSaving = ref(false);
@@ -319,6 +355,10 @@ const endianOptions = [
 const dataSideLabel = (v) => (Number(v) === 2 ? '客户端' : '任意侧');
 const dataTypeLabel = (v) => dataTypeOptions.find((x) => x.value === Number(v))?.label ?? v;
 const protectLabel = (v) => ['只读', '读写', '只写'][Number(v)] ?? v;
+const statusLabel = (v) => ({
+	0: '正常', 1: '地址错误', 2: '方法错误', 3: '表达式错误', 4: '异常', 5: '未采集',
+	6: '自定义1', 7: '自定义2', 8: '自定义3', 9: '自定义4', 10: '自定义5',
+})[Number(v)] ?? v;
 
 const query = reactive({ keyword: '', driverId: null, page: 1, pageSize: 20 });
 const form = reactive({
@@ -438,6 +478,46 @@ const remove = async (row) => {
 	await loadStats();
 };
 
+const copyDevice = async (row) => {
+	const { value } = await ElMessageBox.prompt(`将复制「${row.deviceName}」及其通讯配置和变量，新设备默认不启动。`, '复制设备', {
+		inputValue: '1',
+		inputPattern: /^([1-9]|[1-9]\d|100)$/,
+		inputErrorMessage: '请输入 1-100 的整数',
+	});
+	await iotDeviceApi.copy({ id: row.id, count: Number(value) });
+	ElMessage.success('复制成功');
+	await loadData();
+	await loadStats();
+};
+
+const requestAttributes = async (row) => {
+	await iotDeviceApi.requestAttributes(row.id);
+	ElMessage.success('属性请求已发送');
+};
+
+const exportBackup = async () => {
+	const res = await iotDeviceApi.export();
+	const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement('a');
+	link.href = url;
+	link.download = `iotgateway_backup_${Date.now()}.xlsx`;
+	link.click();
+	URL.revokeObjectURL(url);
+};
+
+const importBackup = async (uploadFile) => {
+	const file = uploadFile.raw;
+	if (!file) return;
+	await ElMessageBox.confirm('导入将覆盖现有设备、变量、通讯配置和 RPC 日志，是否继续？', '覆盖恢复', { type: 'warning' });
+	const res = await iotDeviceApi.importBackup(file);
+	const result = res.data.result || {};
+	ElMessage.success(`恢复成功：${result.deviceCount || 0} 个设备，${result.groupCount || 0} 个分组`);
+	await loadData();
+	await loadGroups();
+	await loadStats();
+};
+
 const refreshDetail = async () => {
 	if (!detail.value.id) return;
 	const res = await iotDeviceApi.detail(detail.value.id);
@@ -491,6 +571,10 @@ const openConfigEdit = (row) => {
 const onConfigNameChange = (name) => {
 	const matched = driverConfigs.value.find((x) => x.name === name);
 	if (matched && !configForm.description) configForm.description = matched.description;
+	if (matched && !configForm.id) {
+		configForm.value = matched.defaultValue ?? '';
+		configForm.enumInfo = matched.enumInfo ?? '';
+	}
 };
 
 const saveConfig = async () => {
@@ -588,6 +672,53 @@ const removeVariable = async (row) => {
 	await iotDeviceVariableApi.delete(row.id);
 	ElMessage.success('删除成功');
 	await refreshDetail();
+};
+
+const openBatchWrite = () => {
+	writeRows.value = (detail.value.deviceVariables || [])
+		.filter((x) => Number(x.protectType) !== 0)
+		.map((x) => ({ name: x.name, dataType: Number(x.dataType), value: '' }));
+	if (!writeRows.value.length) {
+		ElMessage.warning('当前设备没有可写变量');
+		return;
+	}
+	writeDialogVisible.value = true;
+};
+
+const writeVariables = async () => {
+	const values = {};
+	for (const row of writeRows.value.filter((x) => String(x.value).trim() !== '')) {
+		if ([0, 1].includes(row.dataType)) {
+			values[row.name] = ['true', '1', 'yes', '是'].includes(String(row.value).toLowerCase());
+		} else if ((row.dataType >= 2 && row.dataType <= 13) || [17, 18].includes(row.dataType)) {
+			const number = Number(row.value);
+			if (!Number.isFinite(number)) {
+				ElMessage.warning(`变量 ${row.name} 的写入值不是有效数字`);
+				return;
+			}
+			values[row.name] = number;
+		} else {
+			values[row.name] = row.value;
+		}
+	}
+	if (!Object.keys(values).length) {
+		ElMessage.warning('请至少填写一个写入值');
+		return;
+	}
+	writing.value = true;
+	try {
+		const res = await iotDeviceVariableApi.write({ deviceId: detail.value.id, values });
+		const result = res.data.result || {};
+		if (!result.isSuccess) {
+			ElMessage.error(result.description || '写入失败');
+			return;
+		}
+		ElMessage.success('写入成功');
+		writeDialogVisible.value = false;
+		await refreshDetail();
+	} finally {
+		writing.value = false;
+	}
 };
 
 onMounted(async () => {

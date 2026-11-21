@@ -38,6 +38,11 @@ public class IotDriverConfigDto
     public string Description { get; set; }
 
     public string DefaultValue { get; set; }
+
+    /// <summary>
+    /// 枚举可选值（JSON）
+    /// </summary>
+    public string EnumInfo { get; set; }
 }
 
 /// <summary>

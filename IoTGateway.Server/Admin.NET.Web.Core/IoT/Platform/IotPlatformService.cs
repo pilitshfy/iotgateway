@@ -217,6 +217,25 @@ public class IotPlatformService : BackgroundService, IIotPlatformRuntime
         }
     }
 
+    public async Task UploadAttributesAsync(string deviceName, object attributes)
+    {
+        if (!CanPublish) return;
+        try
+        {
+            await _handler.UploadAttributeAsync(_client, deviceName, attributes);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "上传平台属性失败：{DeviceName}", deviceName);
+        }
+    }
+
+    public async Task RequestAttributesAsync(string deviceName, bool anySide, params string[] keys)
+    {
+        if (!CanPublish) throw new InvalidOperationException("上游平台 MQTT 未连接，无法请求属性");
+        await _handler.RequestAttributes(_client, deviceName, anySide, keys);
+    }
+
     public async Task DeviceConnectedAsync(string deviceName)
     {
         if (!CanPublish) return;

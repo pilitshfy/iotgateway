@@ -20,6 +20,30 @@ public class IotIdsInput
 }
 
 /// <summary>
+/// 设备复制输入
+/// </summary>
+public class IotDeviceCopyInput
+{
+    [Required(ErrorMessage = "设备Id不能为空")]
+    public long Id { get; set; }
+
+    [Range(1, 100, ErrorMessage = "复制数量范围为1-100")]
+    public int Count { get; set; } = 1;
+}
+
+/// <summary>
+/// 变量批量写入输入
+/// </summary>
+public class IotVariableWriteInput
+{
+    [Required(ErrorMessage = "设备Id不能为空")]
+    public long DeviceId { get; set; }
+
+    [Required(ErrorMessage = "写入值不能为空")]
+    public Dictionary<string, object> Values { get; set; } = new();
+}
+
+/// <summary>
 /// 设备分页查询
 /// </summary>
 public class IotDevicePageInput : BasePageInput

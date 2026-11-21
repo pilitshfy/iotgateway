@@ -26,6 +26,11 @@ public interface IIotDeviceRuntime
     List<long> GetRunningDeviceIds();
 
     /// <summary>
+    /// 获取采集线程中的实时变量
+    /// </summary>
+    List<IotDeviceVariable> GetDeviceVariables(long deviceId);
+
+    /// <summary>
     /// 执行 RPC（写入设备变量）
     /// </summary>
     Task<IotRpcResultDto> ExecuteRpcAsync(IotRpcRequestDto request);
@@ -70,4 +75,14 @@ public interface IIotPlatformRuntime
     /// 重新加载平台连接与处理器
     /// </summary>
     Task ReloadAsync();
+
+    /// <summary>
+    /// 上传设备客户端属性
+    /// </summary>
+    Task UploadAttributesAsync(string deviceName, object attributes);
+
+    /// <summary>
+    /// 请求设备属性
+    /// </summary>
+    Task RequestAttributesAsync(string deviceName, bool anySide, params string[] keys);
 }

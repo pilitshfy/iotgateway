@@ -84,6 +84,15 @@ public class IotDeviceThread : IDisposable
         {
             await Task.Delay(5000, token);
 
+            // 启动后上传客户端属性（含设备别名）
+            var attributes = Device.DeviceConfigs?
+                .Where(x => x.DataSide == IotDataSideEnum.ClientSide || x.DataSide == IotDataSideEnum.AnySide)
+                .ToDictionary(x => x.DeviceConfigName, x => x.Value) ?? new Dictionary<string, string>();
+            foreach (var deviceName in GetUploadDeviceNames())
+            {
+                await _platformService.UploadAttributesAsync(deviceName, attributes);
+            }
+
             while (!token.IsCancellationRequested)
             {
                 _resetEvent.Wait(token);
@@ -259,7 +268,7 @@ public class IotDeviceThread : IDisposable
             var payload = JsonConvert.SerializeObject(new
             {
                 ts = (long)(DateTime.UtcNow - _tsStartDt).TotalMilliseconds,
-                devicestatus = "Good",
+                devicestatus = 0,
                 values
             });
             await _mqttServer.PublishAsync($"internal/v1/gateway/telemetry/{deviceName}", payload);
@@ -269,18 +278,30 @@ public class IotDeviceThread : IDisposable
         }
     }
 
+    private List<string> GetUploadDeviceNames()
+    {
+        var names = Device.DeviceVariables
+            .Select(x => string.IsNullOrWhiteSpace(x.Alias) ? Device.DeviceName : x.Alias)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct()
+            .ToList();
+        if (names.Count == 0 && !string.IsNullOrWhiteSpace(Device.DeviceName)) names.Add(Device.DeviceName);
+        return names;
+    }
+
     private async Task PublishStatusAsync(bool connected)
     {
         if (_lastConnected == connected) return;
         _lastConnected = connected;
-        await _mqttServer.PublishAsync(
-            $"internal/v1/gateway/status/{Device.DeviceName}",
-            JsonConvert.SerializeObject(new { connected }));
 
-        if (_platformService != null)
+        foreach (var deviceName in GetUploadDeviceNames())
         {
-            if (connected) await _platformService.DeviceConnectedAsync(Device.DeviceName);
-            else await _platformService.DeviceDisconnectedAsync(Device.DeviceName);
+            await _mqttServer.PublishAsync(
+                $"internal/v1/gateway/status/{deviceName}",
+                JsonConvert.SerializeObject(new { connected }));
+
+            if (connected) await _platformService.DeviceConnectedAsync(deviceName);
+            else await _platformService.DeviceDisconnectedAsync(deviceName);
         }
     }
 
@@ -375,7 +396,10 @@ public class IotDeviceThread : IDisposable
     public void StopThread()
     {
         _logger.LogInformation("设备采集线程停止：{DeviceName}", Device.DeviceName);
-        _platformService?.DeviceDisconnectedAsync(Device.DeviceName).GetAwaiter().GetResult();
+        foreach (var deviceName in GetUploadDeviceNames())
+        {
+            _platformService.DeviceDisconnectedAsync(deviceName).GetAwaiter().GetResult();
+        }
         _tokenSource.Cancel();
         try
         {

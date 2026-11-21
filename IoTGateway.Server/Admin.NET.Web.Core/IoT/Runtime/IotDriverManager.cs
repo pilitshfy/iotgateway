@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using Admin.NET.Application;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using PluginInterface;
 
 namespace Admin.NET.Web.Core;
@@ -72,17 +73,29 @@ public class IotDriverManager : IIotDriverProvider
         var type = FindType(assembleName);
         if (type == null) return new List<IotDriverConfigDto>();
 
-        return type.GetProperties()
-            .Select(p => new { Property = p, Attribute = p.GetCustomAttribute<ConfigParameterAttribute>() })
-            .Where(x => x.Attribute != null)
-            .Select(x => new IotDriverConfigDto
-            {
-                Name = x.Property.Name,
-                Type = x.Property.PropertyType.Name,
-                Description = x.Attribute.Description,
-                DefaultValue = null
-            })
-            .ToList();
+        var driver = CreateDriver(string.Empty, assembleName);
+        try
+        {
+            return type.GetProperties()
+                .Select(p => new { Property = p, Attribute = p.GetCustomAttribute<ConfigParameterAttribute>() })
+                .Where(x => x.Attribute != null)
+                .Select(x => new IotDriverConfigDto
+                {
+                    Name = x.Property.Name,
+                    Type = x.Property.PropertyType.Name,
+                    Description = x.Attribute.Description,
+                    DefaultValue = driver == null ? null : x.Property.GetValue(driver)?.ToString(),
+                    EnumInfo = x.Property.PropertyType.IsEnum
+                        ? JsonConvert.SerializeObject(Enum.GetValues(x.Property.PropertyType).Cast<object>()
+                            .ToDictionary(v => Enum.GetName(x.Property.PropertyType, v), v => Convert.ToInt32(v)))
+                        : null
+                })
+                .ToList();
+        }
+        finally
+        {
+            (driver as IDisposable)?.Dispose();
+        }
     }
 
     /// <summary>

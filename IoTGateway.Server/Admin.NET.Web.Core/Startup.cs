@@ -67,6 +67,7 @@ public class Startup : AppStartup
         services.AddHostedService(sp => sp.GetRequiredService<IotPlatformService>());
         services.AddSingleton<IotRpcRuntime>();
         services.AddHostedService(sp => sp.GetRequiredService<IotRpcRuntime>());
+        services.AddHostedService<IotModbusSlaveService>();
 
         // 缓存注册
         services.AddCache();
