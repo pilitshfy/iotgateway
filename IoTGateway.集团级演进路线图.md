@@ -9,10 +9,10 @@
 ```
 ┌───────────────────── 中心平台（Admin.NET） ─────────────────────┐
 │  组织/权限 │ 设备模型 │ 时序历史 │ 告警引擎 │ 报表/BI │ 开放API   │
-│        汇聚 MQTT Broker（接收边缘 + 本地采集上报）              │
-│        时序库（TDengine）  │  消息解耦（MQ→历史/告警/推送）      │
+│   汇聚消费层（统一抽象 IIotIngressConsumer）：MQTT / Kafka 双通道 │
+│        PostgreSQL：配置（普通表）+ 历史时序（TimescaleDB 超表）  │
 └──────────────────────────────────▲───────────────────────────────┘
-                                   │ MQTT telemetry/status/rpc
+                       │ MQTT telemetry/status/rpc  或  Kafka
             ┌──────────────────────┼──────────────────────┐
             ▼                      ▼                      ▼
      ┌─ 边缘节点 A ─┐       ┌─ 边缘节点 B ─┐       ┌─ 边缘节点 N ─┐
@@ -26,24 +26,38 @@
 
 | 能力 | 选型 | 理由 |
 |---|---|---|
-| 时序存储 | TDengine 3.x | 开源、超级表按设备/变量自动分子表，写入与查询适合十万级变量；单机起步可平滑集群 |
-| 消息解耦 | 现有 MQTT Broker 起步 | 复用 1888 作为汇聚总线；历史写入/告警/推送订阅内部主题；后续高压可上 Kafka |
-| 配置库 | SQLite（现有）→ 可迁 MySQL | 配置数据量小，SQLite 够用；若需高并发管理面再迁 MySQL |
+| 配置库 | **PostgreSQL** | 大规模配置下并发、索引、JSONB、事务均优于 SQLite；SqlSugar 原生支持，改 `appsettings.json` 的 `DbType` 与连接串即可，表结构与种子数据不变 |
+| 时序存储 | **TimescaleDB（PostgreSQL 扩展）** | 与配置库共用同一套 PG：普通表存配置，hypertable 超表存时序；原生支持自动分区、列式压缩、连续聚合（自动降采样）、保留策略；标准 SQL，开发与运维成本最低（详见下方对比） |
+| 汇聚总线 | **MQTT + Kafka 双通道** | 设备/边缘可上报 MQTT 或 Kafka；中心以 `IIotIngressConsumer` 统一抽象消费，历史写入/告警/推送作为下游消费者，切换通道不影响业务 |
+
+### 时序数据库选型对比
+
+| 方案 | 优点 | 缺点 | 适用 |
+|---|---|---|---|
+| **TimescaleDB（推荐）** | 与配置库共用 PG，一套引擎；标准 SQL；连续聚合降采样+保留策略；生态成熟 | 写入吞吐略低于专用引擎，单库上限受 PG 约束 | **本项目首选**：配置已用 PG，十万级变量量级足够，复杂度最低 |
+| TDengine 3.x | IoT 专用、写入快、超级表按设备分子表 | 多一套引擎、SQL 方言、运维/备份独立、生态较窄 | 写入量极大且愿意多维护一套库时 |
+| InfluxDB 3.x | 时序领域流行、查询能力强 | 2.x 开源版有限制，3.x 较新；独立引擎 | 团队已有 Influx 经验时 |
+| ClickHouse | 分析查询极快、列存压缩好 | 写入 schema 管理重、非 IoT 首选、改造成本高 | 超大规模冷数据分析/归档层 |
+
+> 演进路径：**P1 用 TimescaleDB 落地**；若 P7 压测发现单 PG 写入成为瓶颈，叠加 Kafka 削峰，或将冷数据归档到 ClickHouse，热数据保留 TimescaleDB。
 
 ## 分阶段路线
 
 ### P0 基础设施与模型（1–2 天）
+- **配置库迁移 PostgreSQL**：`appsettings.json` 切换 `DbType=PostgreSQL` + 连接串；现有 SQLite 数据用脚本迁移到 PG；验证种子数据与运行正常。
+- **启用 TimescaleDB 扩展**：在同一 PG 实例上 `CREATE EXTENSION IF NOT EXISTS timescaledb`，准备 hypertable。
 - 引入组织实体 `IotOrg`（集团/事业部/工厂/车间/产线树形）与边缘节点实体 `IotEdgeNode`。
 - 设备 `IotDevice` 增加 `OrgId`、`EdgeNodeId`，作为数据隔离与归属锚点。
-- 接入 TDengine 连接配置（`appsettings.json`）与初始化（自动建库建超级表）。
+- **汇聚消费抽象**：定义 `IIotIngressConsumer`，落地 MQTT 消费者（复用现有 Broker）与 Kafka 消费者，两者解出统一的 `IotTelemetryMessage` 投递给下游。
 - 菜单种子：组织管理、边缘节点、历史数据、告警规则、告警记录、报表、数据订阅。
 
 ### P1 时序历史数据（**最先做，地基**）
-- 采集线程把周期采集值以 `IotTsData`（device + measurements + values + timestamp）写入 TDengine。
-- 超级表设计：按变量建子表（超级表含 `ts` 时间戳 + 数值字段，TAG 为 deviceName/variableName）。
-- 历史查询 API：按设备/变量 + 时间范围 + 聚合（原始/均值/最大最小/降采样）。
+- 采集线程把周期采集值以 `IotTsData`（device + measurements + values + timestamp）投递到汇聚层，由历史消费者批量写入 TimescaleDB。
+- **hypertable 设计**：`metric(time timestamptz, device_id bigint, variable_id bigint, value double precision, status int)` 建为 hypertable 按 `time` 自动分区；以 `(device_id, variable_id)` 建索引，支持按变量查趋势。
+- 写入批量缓冲：内存队列攒批（如 500 条或 1 秒）批量 INSERT，降低 PG 连接压力。
+- 历史查询 API：按设备/变量 + 时间范围 + 聚合（原始/`time_bucket` 降采样均值/最大最小）。
 - 前端「历史趋势」页：选设备+变量+时间范围 → ECharts 折线，可多变量对比。
-- 留存策略：配置保留天数，定时清理过期数据。
+- 留存策略：TimescaleDB `add_retention_policy` 自动清理过期数据（替代手工清理）。
 - 价值：解锁告警、报表、大屏的数据源。
 
 ### P2 组织与多租户数据隔离

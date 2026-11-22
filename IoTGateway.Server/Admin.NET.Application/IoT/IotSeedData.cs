@@ -21,7 +21,8 @@ public class IotMenuSeedData : ISqlSugarEntitySeedData<SysMenu>
             new SysMenu{ Id=1311000010201, Pid=1311000000101, Title="驱动管理", Path="/iot/driver", Name="iotDriver", Component="/iot/driver/index", Icon="ele-Box", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=110 },
             new SysMenu{ Id=1311000010301, Pid=1311000000101, Title="传输配置", Path="/iot/config", Name="iotConfig", Component="/iot/config/index", Icon="ele-Setting", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=120 },
             new SysMenu{ Id=1311000010401, Pid=1311000000101, Title="MQTT状态", Path="/iot/mqtt", Name="iotMqtt", Component="/iot/mqtt/index", Icon="ele-Monitor", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=130 },
-            new SysMenu{ Id=1311000010501, Pid=1311000000101, Title="RPC日志", Path="/iot/rpc", Name="iotRpc", Component="/iot/rpc/index", Icon="ele-Link", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=140 }
+            new SysMenu{ Id=1311000010501, Pid=1311000000101, Title="RPC日志", Path="/iot/rpc", Name="iotRpc", Component="/iot/rpc/index", Icon="ele-Link", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=140 },
+            new SysMenu{ Id=1311000010601, Pid=1311000000101, Title="历史数据", Path="/iot/history", Name="iotHistory", Component="/iot/history/index", Icon="ele-TrendCharts", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=150 }
         };
     }
 }

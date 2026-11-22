@@ -95,6 +95,13 @@ export const iotRpcLogApi = {
 };
 
 /**
+ * IoT 历史数据（TimescaleDB）
+ */
+export const iotHistoryApi = {
+	query: (data: any) => request({ url: '/api/iotHistory/queryHistory', method: 'post', data }),
+};
+
+/**
  * IoT 首页图表
  */
 export const iotDashboardApi = {

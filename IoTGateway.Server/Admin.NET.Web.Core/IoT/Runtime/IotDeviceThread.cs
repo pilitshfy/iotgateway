@@ -19,6 +19,7 @@ public class IotDeviceThread : IDisposable
 {
     private readonly IotMqttServer _mqttServer;
     private readonly IotPlatformService _platformService;
+    private readonly IIotHistorySink _historySink;
     private readonly ILogger _logger;
     public readonly IotDevice Device;
     public readonly IDriver Driver;
@@ -39,12 +40,13 @@ public class IotDeviceThread : IDisposable
     private DateTime _lastPublishTime = DateTime.MinValue;
     private bool? _lastConnected;
 
-    public IotDeviceThread(IotDevice device, IDriver driver, IotMqttServer mqttServer, IotPlatformService platformService, ILogger logger)
+    public IotDeviceThread(IotDevice device, IDriver driver, IotMqttServer mqttServer, IotPlatformService platformService, ILogger logger, IIotHistorySink historySink = null)
     {
         Device = device;
         Driver = driver;
         _mqttServer = mqttServer;
         _platformService = platformService;
+        _historySink = historySink;
         _logger = logger;
         _interpreter = new Interpreter();
 
@@ -275,6 +277,17 @@ public class IotDeviceThread : IDisposable
 
             if (_platformService != null)
                 await _platformService.PublishTelemetryAsync(deviceName, Device, values);
+
+            // 落时序历史库（TimescaleDB），非阻塞入队
+            if (_historySink is { Enabled: true })
+            {
+                foreach (var kv in values)
+                {
+                    var variable = Device.DeviceVariables.FirstOrDefault(v => v.Name == kv.Key);
+                    if (variable != null)
+                        _historySink.Enqueue(Device.Id, variable.Id, kv.Value, (int)variable.StatusType, now);
+                }
+            }
         }
     }
 

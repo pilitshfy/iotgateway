@@ -72,6 +72,13 @@ public class Startup : AppStartup
         services.AddHostedService(sp => sp.GetRequiredService<IotRpcRuntime>());
         services.AddHostedService<IotModbusSlaveService>();
 
+        // IoT 时序历史存储（TimescaleDB）：批量落库 + 查询
+        services.Configure<IotHistoryOptions>(App.Configuration.GetSection("IotHistory"));
+        services.AddSingleton<IotHistorySink>();
+        services.AddSingleton<IIotHistorySink>(sp => sp.GetRequiredService<IotHistorySink>());
+        services.AddHostedService(sp => sp.GetRequiredService<IotHistorySink>());
+        services.AddSingleton<IIotHistoryQuery, IotHistoryQuery>();
+
         // 缓存注册
         services.AddCache();
         // SqlSugar
