@@ -18,11 +18,13 @@ namespace Admin.NET.Application;
 public class IotDeviceVariableService : IDynamicApiController, ITransient
 {
     private readonly SqlSugarRepository<IotDeviceVariable> _variableRep;
+    private readonly IotOrgScopeService _orgScope;
     private readonly IServiceProvider _serviceProvider;
 
-    public IotDeviceVariableService(SqlSugarRepository<IotDeviceVariable> variableRep, IServiceProvider serviceProvider)
+    public IotDeviceVariableService(SqlSugarRepository<IotDeviceVariable> variableRep, IotOrgScopeService orgScope, IServiceProvider serviceProvider)
     {
         _variableRep = variableRep;
+        _orgScope = orgScope;
         _serviceProvider = serviceProvider;
     }
 
@@ -34,7 +36,10 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
     [DisplayName("变量分页列表"), HttpPost]
     public async Task<SqlSugarPagedList<IotDeviceVariable>> Page([FromBody] IotDeviceVariablePageInput input)
     {
+        if (input.DeviceId.HasValue) await _orgScope.EnsureDeviceAccessAsync(input.DeviceId.Value);
+        var deviceIds = await (await _orgScope.DeviceQueryAsync()).Select(u => u.Id).ToListAsync();
         var paged = await _variableRep.AsQueryable()
+            .Where(u => deviceIds.Contains(u.DeviceId))
             .WhereIF(input.DeviceId.HasValue, u => u.DeviceId == input.DeviceId)
             .WhereIF(!string.IsNullOrWhiteSpace(input.Keyword), u => u.Name.Contains(input.Keyword))
             .OrderBy(u => new { u.Index, u.Name })
@@ -49,6 +54,7 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
     [DisplayName("变量列表"), HttpGet]
     public async Task<List<IotDeviceVariable>> List([FromQuery] long deviceId)
     {
+        await _orgScope.EnsureDeviceAccessAsync(deviceId);
         var list = await _variableRep.AsQueryable()
             .Where(u => u.DeviceId == deviceId)
             .OrderBy(u => new { u.Index, u.Name })
@@ -64,8 +70,7 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
     public async Task<IotRpcResultDto> Write([FromBody] IotVariableWriteInput input)
     {
         if (input.Values == null || input.Values.Count == 0) throw Oops.Oh("请至少填写一个变量值");
-        var device = await _variableRep.Context.Queryable<IotDevice>().InSingleAsync(input.DeviceId)
-            ?? throw Oops.Oh("设备不存在");
+        var device = await _orgScope.EnsureDeviceAccessAsync(input.DeviceId);
         if (Runtime == null) throw Oops.Oh("设备运行时未启动");
 
         return await Runtime.ExecuteRpcAsync(new IotRpcRequestDto
@@ -85,7 +90,10 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
     {
         if (input?.Ids == null || input.Ids.Count == 0) return;
 
-        var variables = await _variableRep.AsQueryable().Where(u => input.Ids.Contains(u.Id)).ToListAsync();
+        var ids = input.Ids.Distinct().ToList();
+        var variables = await _variableRep.AsQueryable().Where(u => ids.Contains(u.Id)).ToListAsync();
+        if (variables.Count != ids.Count) throw Oops.Oh("部分变量不存在或无权访问");
+        await _orgScope.GetAccessibleDevicesAsync(variables.Select(u => u.DeviceId));
         foreach (var db in variables)
         {
             if (!string.IsNullOrWhiteSpace(input.Method)) db.Method = input.Method;
@@ -111,8 +119,11 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
     [DisplayName("导出变量"), ApiDescriptionSettings(Name = "Export"), HttpGet]
     public async Task<IActionResult> Export([FromQuery] long? deviceId)
     {
-        var devices = await _variableRep.Context.Queryable<IotDevice>().ToListAsync();
+        if (deviceId.HasValue) await _orgScope.EnsureDeviceAccessAsync(deviceId.Value);
+        var devices = await (await _orgScope.DeviceQueryAsync()).ToListAsync();
+        var deviceIds = devices.Select(u => u.Id).ToList();
         var variables = await _variableRep.AsQueryable()
+            .Where(u => deviceIds.Contains(u.DeviceId))
             .WhereIF(deviceId.HasValue, u => u.DeviceId == deviceId)
             .OrderBy(u => new { u.DeviceId, u.Index, u.Name })
             .ToListAsync();
@@ -143,6 +154,7 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
     [DisplayName("导入变量"), ApiDescriptionSettings(Name = "Import"), HttpPost]
     public async Task<object> Import([FromForm] IFormFile file, [FromForm] long? deviceId)
     {
+        if (deviceId.HasValue) await _orgScope.EnsureDeviceAccessAsync(deviceId.Value);
         if (file == null || file.Length == 0) throw Oops.Oh("请选择 Excel 文件");
         if (!Path.GetExtension(file.FileName).Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
             throw Oops.Oh("仅支持 .xlsx 文件");
@@ -163,8 +175,9 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
             throw Oops.Oh($"读取 Excel 失败：{ex.Message}");
         }
 
-        var devices = await _variableRep.Context.Queryable<IotDevice>().ToListAsync();
-        var variables = await _variableRep.AsQueryable().ToListAsync();
+        var devices = await (await _orgScope.DeviceQueryAsync()).ToListAsync();
+        var visibleDeviceIds = devices.Select(u => u.Id).ToList();
+        var variables = await _variableRep.AsQueryable().Where(u => visibleDeviceIds.Contains(u.DeviceId)).ToListAsync();
         var affectedDeviceIds = new HashSet<long>();
         var insertCount = 0;
         var updateCount = 0;
@@ -175,10 +188,19 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
             var name = Cell(row, "变量名");
             if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(deviceName)) continue;
 
-            var targetDeviceId = !string.IsNullOrWhiteSpace(deviceName)
-                ? devices.FirstOrDefault(u => u.DeviceName == deviceName)?.Id ?? deviceId
-                : deviceId;
-            if (targetDeviceId == null) throw Oops.Oh($"变量 {name} 所属设备不存在：{deviceName}");
+            long? targetDeviceId;
+            if (!string.IsNullOrWhiteSpace(deviceName))
+            {
+                var namedDevice = devices.FirstOrDefault(u => u.DeviceName == deviceName)
+                    ?? throw Oops.Oh($"变量 {name} 所属设备不存在或无权访问：{deviceName}");
+                targetDeviceId = namedDevice.Id;
+            }
+            else
+            {
+                targetDeviceId = deviceId;
+            }
+            if (targetDeviceId == null || !visibleDeviceIds.Contains(targetDeviceId.Value))
+                throw Oops.Oh($"变量 {name} 所属设备不存在或无权访问：{deviceName}");
             if (string.IsNullOrWhiteSpace(name)) continue;
 
             var entity = variables.FirstOrDefault(u => u.DeviceId == targetDeviceId.Value && u.Name == name);
@@ -281,6 +303,7 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
     [DisplayName("新增变量"), ApiDescriptionSettings(Name = "Add"), HttpPost]
     public async Task<long> Add([FromBody] IotDeviceVariable input)
     {
+        await _orgScope.EnsureDeviceAccessAsync(input.DeviceId);
         input.Id = 0;
         await _variableRep.InsertAsync(input);
         if (Runtime != null) await Runtime.RestartDeviceAsync(input.DeviceId);
@@ -294,6 +317,8 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
     public async Task Update([FromBody] IotDeviceVariable input)
     {
         var db = await _variableRep.GetByIdAsync(input.Id) ?? throw Oops.Oh("变量不存在");
+        await _orgScope.EnsureDeviceAccessAsync(db.DeviceId);
+        await _orgScope.EnsureDeviceAccessAsync(input.DeviceId);
         var oldDeviceId = db.DeviceId;
         db.Name = input.Name;
         db.Description = input.Description;
@@ -322,7 +347,8 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
     [DisplayName("删除变量"), ApiDescriptionSettings(Name = "Delete"), HttpPost]
     public async Task Delete([FromBody] IotIdInput input)
     {
-        var db = await _variableRep.GetByIdAsync(input.Id);
+        var db = await _variableRep.GetByIdAsync(input.Id) ?? throw Oops.Oh("变量不存在");
+        await _orgScope.EnsureDeviceAccessAsync(db.DeviceId);
         await _variableRep.DeleteByIdAsync(input.Id);
         if (db != null && Runtime != null) await Runtime.RestartDeviceAsync(db.DeviceId);
     }
@@ -334,8 +360,12 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
     public async Task BatchDelete([FromBody] IotIdsInput input)
     {
         if (input?.Ids == null || input.Ids.Count == 0) return;
-        var deviceIds = await _variableRep.AsQueryable().Where(u => input.Ids.Contains(u.Id)).Select(u => u.DeviceId).Distinct().ToListAsync();
-        await _variableRep.Context.Deleteable<IotDeviceVariable>().In(input.Ids).ExecuteCommandAsync();
+        var ids = input.Ids.Distinct().ToList();
+        var variables = await _variableRep.AsQueryable().Where(u => ids.Contains(u.Id)).ToListAsync();
+        if (variables.Count != ids.Count) throw Oops.Oh("部分变量不存在或无权访问");
+        var deviceIds = variables.Select(u => u.DeviceId).Distinct().ToList();
+        await _orgScope.GetAccessibleDevicesAsync(deviceIds);
+        await _variableRep.Context.Deleteable<IotDeviceVariable>().In(ids).ExecuteCommandAsync();
         if (Runtime != null)
             foreach (var deviceId in deviceIds)
                 await Runtime.RestartDeviceAsync(deviceId);

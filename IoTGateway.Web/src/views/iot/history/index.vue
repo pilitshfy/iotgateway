@@ -88,7 +88,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import scEcharts from '/@/components/scEcharts/index.vue';
-import { iotDeviceApi, iotDeviceVariableApi, iotHistoryApi } from '/@/api/iot';
+import { iotAlarmEventApi, iotDeviceApi, iotDeviceVariableApi, iotHistoryApi } from '/@/api/iot';
 
 const COLORS = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc', '#48b8d0'];
 
@@ -102,6 +102,7 @@ const rangeKey = ref('1h');
 const aggregate = ref('raw');
 const bucketSeconds = ref(60);
 const points = ref([]);
+const alarmEvents = ref([]);
 const queried = ref(false);
 
 const canQuery = computed(() => !!deviceId.value && variableIds.value.length > 0);
@@ -131,8 +132,45 @@ const seriesList = computed(() => {
 			smooth: true,
 			itemStyle: { color: COLORS[idx % COLORS.length] },
 			data: arr,
+			...(idx === 0
+				? {
+						markLine: {
+							symbol: ['none', 'none'],
+							animation: false,
+							label: { show: true, position: 'insideEndTop', formatter: '{b}', fontSize: 11 },
+							tooltip: { formatter: (params) => `${params.data.ruleName || ''}<br/>${params.name}：${params.data.eventTime || ''}` },
+							data: alarmMarkLines.value,
+						},
+					}
+				: {}),
 		};
 	});
+});
+
+const alarmMarkLines = computed(() => {
+	const hasRange = timeRange.value?.length === 2;
+	const start = hasRange ? toTs(timeRange.value[0]) : null;
+	const end = hasRange ? toTs(timeRange.value[1]) : null;
+	const marks = [];
+	alarmEvents.value.forEach((event) => {
+		[
+			{ name: '触发', rawTime: event.triggerTime, color: '#f56c6c' },
+			{ name: '恢复', rawTime: event.recoverTime, color: '#67c23a' },
+		].forEach((item) => {
+			if (!item.rawTime) return;
+			const timestamp = toTs(item.rawTime);
+			if (!Number.isFinite(timestamp) || (hasRange && (timestamp < start || timestamp > end))) return;
+			marks.push({
+				name: item.name,
+				xAxis: timestamp,
+				ruleName: event.ruleName,
+				eventTime: formatTime(item.rawTime),
+				lineStyle: { color: item.color, type: 'dashed', width: 1.5 },
+				label: { color: item.color },
+			});
+		});
+	});
+	return marks;
 });
 
 const chartOption = computed(() => ({
@@ -239,8 +277,13 @@ async function loadData() {
 		}
 		if (aggregate.value !== 'raw') payload.bucketSeconds = bucketSeconds.value;
 		payload.limit = 20000;
-		const res = await iotHistoryApi.query(payload);
-		points.value = res?.data?.result || [];
+		const alarmPayload = { deviceId: deviceId.value };
+		if (payload.startTime) alarmPayload.startTime = payload.startTime;
+		if (payload.endTime) alarmPayload.endTime = payload.endTime;
+		const [historyResult, alarmResult] = await Promise.allSettled([iotHistoryApi.query(payload), iotAlarmEventApi.list(alarmPayload)]);
+		alarmEvents.value = alarmResult.status === 'fulfilled' ? alarmResult.value?.data?.result || [] : [];
+		if (historyResult.status === 'rejected') throw historyResult.reason;
+		points.value = historyResult.value?.data?.result || [];
 		queried.value = true;
 	} finally {
 		loading.value = false;

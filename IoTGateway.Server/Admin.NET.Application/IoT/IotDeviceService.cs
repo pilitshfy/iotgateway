@@ -21,6 +21,7 @@ public class IotDeviceService : IDynamicApiController, ITransient
     private readonly SqlSugarRepository<IotDriver> _driverRep;
     private readonly SqlSugarRepository<IotDeviceConfig> _configRep;
     private readonly SqlSugarRepository<IotDeviceVariable> _variableRep;
+    private readonly IotOrgScopeService _orgScope;
     private readonly IServiceProvider _serviceProvider;
 
     public IotDeviceService(
@@ -28,12 +29,14 @@ public class IotDeviceService : IDynamicApiController, ITransient
         SqlSugarRepository<IotDriver> driverRep,
         SqlSugarRepository<IotDeviceConfig> configRep,
         SqlSugarRepository<IotDeviceVariable> variableRep,
+        IotOrgScopeService orgScope,
         IServiceProvider serviceProvider)
     {
         _deviceRep = deviceRep;
         _driverRep = driverRep;
         _configRep = configRep;
         _variableRep = variableRep;
+        _orgScope = orgScope;
         _serviceProvider = serviceProvider;
     }
 
@@ -47,7 +50,8 @@ public class IotDeviceService : IDynamicApiController, ITransient
     [DisplayName("设备分页列表"), HttpPost]
     public async Task<SqlSugarPagedList<IotDevice>> Page([FromBody] IotDevicePageInput input)
     {
-        var paged = await _deviceRep.AsQueryable()
+        var query = await _orgScope.DeviceQueryAsync(input.OrgId);
+        var paged = await query
             .WhereIF(!string.IsNullOrWhiteSpace(input.Keyword), u => u.DeviceName.Contains(input.Keyword))
             .WhereIF(input.DriverId.HasValue, u => u.DriverId == input.DriverId)
             .WhereIF(input.DeviceTypeEnum.HasValue, u => u.DeviceTypeEnum == input.DeviceTypeEnum)
@@ -55,7 +59,7 @@ public class IotDeviceService : IDynamicApiController, ITransient
             .OrderBy(u => new { u.Index, u.DeviceName })
             .ToPagedListAsync(input.Page, input.PageSize);
 
-        await FillDriverNameAsync(paged.Items);
+        await FillDeviceMetadataAsync(paged.Items);
         return paged;
     }
 
@@ -63,14 +67,15 @@ public class IotDeviceService : IDynamicApiController, ITransient
     /// 设备树列表（全部）
     /// </summary>
     [DisplayName("设备树列表"), HttpGet]
-    public async Task<List<IotDevice>> List([FromQuery] string keyword = null)
+    public async Task<List<IotDevice>> List([FromQuery] string keyword = null, [FromQuery] IotDeviceTypeEnum? deviceTypeEnum = null, [FromQuery] long? orgId = null)
     {
-        var list = await _deviceRep.AsQueryable()
+        var list = await (await _orgScope.DeviceQueryAsync(orgId))
             .WhereIF(!string.IsNullOrWhiteSpace(keyword), u => u.DeviceName.Contains(keyword))
+            .WhereIF(deviceTypeEnum.HasValue, u => u.DeviceTypeEnum == deviceTypeEnum)
             .OrderBy(u => new { u.Index, u.DeviceName })
             .ToListAsync();
 
-        await FillDriverNameAsync(list);
+        await FillDeviceMetadataAsync(list);
         return list;
     }
 
@@ -80,13 +85,12 @@ public class IotDeviceService : IDynamicApiController, ITransient
     [DisplayName("设备详情"), HttpGet]
     public async Task<IotDevice> Detail([FromQuery] long id)
     {
-        var entity = await _deviceRep.GetByIdAsync(id);
-        if (entity == null) throw Oops.Oh("设备不存在");
+        var entity = await _orgScope.EnsureDeviceAccessAsync(id);
 
         entity.DeviceConfigs = await _configRep.AsQueryable().Where(u => u.DeviceId == id).OrderBy(u => u.Id).ToListAsync();
         entity.DeviceVariables = await _variableRep.AsQueryable().Where(u => u.DeviceId == id).OrderBy(u => u.Index).ToListAsync();
         FillRuntimeValues(entity.DeviceVariables);
-        await FillDriverNameAsync(new[] { entity });
+        await FillDeviceMetadataAsync(new[] { entity });
         return entity;
     }
 
@@ -97,6 +101,8 @@ public class IotDeviceService : IDynamicApiController, ITransient
     public async Task<long> Add([FromBody] IotDevice input)
     {
         input.Id = 0;
+        input.OrgId = await _orgScope.ResolveOrgIdAsync(input.OrgId);
+        await ValidateParentAsync(input.ParentId, input.OrgId);
         await _deviceRep.InsertAsync(input);
         if (input.DeviceTypeEnum == IotDeviceTypeEnum.Device && input.DriverId.HasValue)
             await AddDriverConfigsAsync(input.Id, input.DriverId.Value);
@@ -110,7 +116,9 @@ public class IotDeviceService : IDynamicApiController, ITransient
     [DisplayName("修改设备"), ApiDescriptionSettings(Name = "Update"), HttpPost]
     public async Task Update([FromBody] IotDevice input)
     {
-        var db = await _deviceRep.GetByIdAsync(input.Id) ?? throw Oops.Oh("设备不存在");
+        var db = await _orgScope.EnsureDeviceAccessAsync(input.Id);
+        db.OrgId = await _orgScope.ResolveOrgIdAsync(input.OrgId > 0 ? input.OrgId : db.OrgId);
+        await ValidateParentAsync(input.ParentId, db.OrgId);
         db.DeviceName = input.DeviceName;
         db.Index = input.Index;
         db.Description = input.Description;
@@ -131,6 +139,7 @@ public class IotDeviceService : IDynamicApiController, ITransient
     [DisplayName("删除设备"), ApiDescriptionSettings(Name = "Delete"), HttpPost]
     public async Task Delete([FromBody] IotIdInput input)
     {
+        await _orgScope.EnsureDeviceAccessAsync(input.Id);
         if (Runtime != null) await Runtime.StopDeviceAsync(input.Id);
         await DeleteChildrenAsync(new List<long> { input.Id });
         await _deviceRep.DeleteByIdAsync(input.Id);
@@ -144,12 +153,14 @@ public class IotDeviceService : IDynamicApiController, ITransient
     {
         if (input?.Ids == null || input.Ids.Count == 0) return;
 
+        var devices = await _orgScope.GetAccessibleDevicesAsync(input.Ids);
+        var deviceIds = devices.Select(u => u.Id).ToList();
         if (Runtime != null)
-            foreach (var deviceId in input.Ids)
+            foreach (var deviceId in deviceIds)
                 await Runtime.StopDeviceAsync(deviceId);
 
-        await DeleteChildrenAsync(input.Ids);
-        await _deviceRep.Context.Deleteable<IotDevice>().In(input.Ids).ExecuteCommandAsync();
+        await DeleteChildrenAsync(deviceIds);
+        await _deviceRep.Context.Deleteable<IotDevice>().In(deviceIds).ExecuteCommandAsync();
     }
 
     /// <summary>
@@ -160,9 +171,13 @@ public class IotDeviceService : IDynamicApiController, ITransient
     {
         if (input?.Ids == null || input.Ids.Count == 0) return;
 
-        var devices = await _deviceRep.AsQueryable().Where(u => input.Ids.Contains(u.Id)).ToListAsync();
+        var devices = await _orgScope.GetAccessibleDevicesAsync(input.Ids);
+        var targetOrgId = input.OrgId.HasValue ? await _orgScope.ResolveOrgIdAsync(input.OrgId.Value) : (long?)null;
         foreach (var db in devices)
         {
+            var orgId = targetOrgId ?? db.OrgId;
+            await ValidateParentAsync(input.ParentId.HasValue ? input.ParentId : db.ParentId, orgId);
+            db.OrgId = orgId;
             if (input.DriverId.HasValue) db.DriverId = input.DriverId;
             if (input.ParentId.HasValue) db.ParentId = input.ParentId;
             if (input.AutoStart.HasValue) db.AutoStart = input.AutoStart.Value;
@@ -183,7 +198,7 @@ public class IotDeviceService : IDynamicApiController, ITransient
     [DisplayName("复制设备"), ApiDescriptionSettings(Name = "Copy"), HttpPost]
     public async Task<List<long>> Copy([FromBody] IotDeviceCopyInput input)
     {
-        var source = await _deviceRep.GetByIdAsync(input.Id) ?? throw Oops.Oh("设备不存在");
+        var source = await _orgScope.EnsureDeviceAccessAsync(input.Id);
         if (source.DeviceTypeEnum == IotDeviceTypeEnum.Group) throw Oops.Oh("分组不支持复制");
 
         var configs = await _configRep.AsQueryable().Where(u => u.DeviceId == input.Id).ToListAsync();
@@ -198,6 +213,7 @@ public class IotDeviceService : IDynamicApiController, ITransient
                 var device = new IotDevice
                 {
                     DeviceName = $"{source.DeviceName}-Copy{i}",
+                    OrgId = source.OrgId,
                     Index = source.Index,
                     Description = source.Description,
                     ParentId = source.ParentId,
@@ -267,7 +283,7 @@ public class IotDeviceService : IDynamicApiController, ITransient
     [DisplayName("请求设备属性"), ApiDescriptionSettings(Name = "RequestAttributes"), HttpPost]
     public async Task RequestAttributes([FromBody] IotIdInput input)
     {
-        var device = await _deviceRep.GetByIdAsync(input.Id) ?? throw Oops.Oh("设备不存在");
+        var device = await _orgScope.EnsureDeviceAccessAsync(input.Id);
         var keys = await _configRep.AsQueryable()
             .Where(u => u.DeviceId == input.Id && u.DataSide == IotDataSideEnum.AnySide)
             .Select(u => u.DeviceConfigName)
@@ -283,11 +299,13 @@ public class IotDeviceService : IDynamicApiController, ITransient
     [DisplayName("导出设备备份"), ApiDescriptionSettings(Name = "Export"), HttpGet]
     public async Task<IActionResult> Export()
     {
-        var devices = await _deviceRep.AsQueryable().OrderBy(u => new { u.ParentId, u.Index, u.DeviceName }).ToListAsync();
+        var scope = await _orgScope.GetScopeAsync();
+        var devices = await (await _orgScope.DeviceQueryAsync()).OrderBy(u => new { u.ParentId, u.Index, u.DeviceName }).ToListAsync();
+        var deviceIds = devices.Select(u => u.Id).ToList();
         var drivers = await _driverRep.AsQueryable().ToListAsync();
-        var configs = await _configRep.AsQueryable().OrderBy(u => new { u.DeviceId, u.DeviceConfigName }).ToListAsync();
-        var variables = await _variableRep.AsQueryable().OrderBy(u => new { u.DeviceId, u.Alias, u.Method, u.Index, u.DeviceAddress }).ToListAsync();
-        var systemConfig = await _deviceRep.Context.Queryable<IotSystemConfig>().FirstAsync();
+        var configs = await _configRep.AsQueryable().Where(u => deviceIds.Contains(u.DeviceId)).OrderBy(u => new { u.DeviceId, u.DeviceConfigName }).ToListAsync();
+        var variables = await _variableRep.AsQueryable().Where(u => deviceIds.Contains(u.DeviceId)).OrderBy(u => new { u.DeviceId, u.Alias, u.Method, u.Index, u.DeviceAddress }).ToListAsync();
+        var systemConfig = scope.IsUnrestricted ? await _deviceRep.Context.Queryable<IotSystemConfig>().FirstAsync() : null;
 
         var sheets = new Dictionary<string, object>
         {
@@ -311,6 +329,7 @@ public class IotDeviceService : IDynamicApiController, ITransient
     [DisplayName("导入设备备份"), ApiDescriptionSettings(Name = "Import"), HttpPost]
     public async Task<object> Import([FromForm] IFormFile file)
     {
+        _orgScope.EnsureSuperAdmin();
         if (file == null || file.Length == 0) throw Oops.Oh("请选择 Excel 备份文件");
         if (!Path.GetExtension(file.FileName).Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
             throw Oops.Oh("仅支持 .xlsx 备份文件");
@@ -335,12 +354,14 @@ public class IotDeviceService : IDynamicApiController, ITransient
             {
                 var entity = row.Entity;
                 entity.Id = 0;
+                entity.OrgId = await _orgScope.ResolveOrgIdAsync(entity.OrgId);
                 if (string.IsNullOrWhiteSpace(row.ParentName))
                     entity.ParentId = null;
                 else if (deviceIds.TryGetValue(row.ParentName, out var parentId))
                     entity.ParentId = parentId;
                 else
                     throw Oops.Oh($"设备 {entity.DeviceName} 所属分组不存在：{row.ParentName}");
+                await ValidateParentAsync(entity.ParentId, entity.OrgId);
                 if (entity.DeviceTypeEnum == IotDeviceTypeEnum.Device && !string.IsNullOrWhiteSpace(row.DriverName))
                 {
                     var driver = backup.Drivers.FirstOrDefault(u => u.DriverName == row.DriverName)
@@ -413,12 +434,16 @@ public class IotDeviceService : IDynamicApiController, ITransient
     [DisplayName("仪表盘统计"), HttpGet]
     public async Task<object> Stats()
     {
-        var deviceCount = await _deviceRep.AsQueryable().Where(u => u.DeviceTypeEnum == IotDeviceTypeEnum.Device).CountAsync();
-        var groupCount = await _deviceRep.AsQueryable().Where(u => u.DeviceTypeEnum == IotDeviceTypeEnum.Group).CountAsync();
-        var variableCount = await _variableRep.AsQueryable().CountAsync();
-        var configCount = await _configRep.AsQueryable().CountAsync();
+        var devices = await (await _orgScope.DeviceQueryAsync()).ToListAsync();
+        var deviceIds = devices.Select(u => u.Id).ToList();
+        var physicalDevices = devices.Where(u => u.DeviceTypeEnum == IotDeviceTypeEnum.Device).ToList();
+        var deviceCount = physicalDevices.Count;
+        var groupCount = devices.Count(u => u.DeviceTypeEnum == IotDeviceTypeEnum.Group);
+        var variableCount = deviceIds.Count == 0 ? 0 : await _variableRep.AsQueryable().Where(u => deviceIds.Contains(u.DeviceId)).CountAsync();
+        var configCount = deviceIds.Count == 0 ? 0 : await _configRep.AsQueryable().Where(u => deviceIds.Contains(u.DeviceId)).CountAsync();
         var driverCount = await _driverRep.AsQueryable().CountAsync();
-        var online = Runtime?.GetRunningDeviceIds()?.Count ?? 0;
+        var runningIds = Runtime?.GetRunningDeviceIds() ?? new List<long>();
+        var online = physicalDevices.Count(u => runningIds.Contains(u.Id));
 
         return new
         {
@@ -443,10 +468,10 @@ public class IotDeviceService : IDynamicApiController, ITransient
 
     private static DataTable BuildDeviceTable(List<IotDevice> devices, List<IotDriver> drivers)
     {
-        var table = CreateTable("设备维护", "名称", "排序", "驱动名", "启动", "变化上传", "归档周期ms", "指令间隔ms", "类型", "所属组");
+        var table = CreateTable("设备维护", "名称", "组织Id", "排序", "驱动名", "启动", "变化上传", "归档周期ms", "指令间隔ms", "类型", "所属组");
         foreach (var device in devices)
         {
-            table.Rows.Add(device.DeviceName, device.Index, drivers.FirstOrDefault(u => u.Id == device.DriverId)?.DriverName,
+            table.Rows.Add(device.DeviceName, device.OrgId, device.Index, drivers.FirstOrDefault(u => u.Id == device.DriverId)?.DriverName,
                 device.AutoStart, device.CgUpload, device.EnforcePeriod, device.CmdPeriod, EnumText(device.DeviceTypeEnum),
                 devices.FirstOrDefault(u => u.Id == device.ParentId)?.DeviceName);
         }
@@ -526,6 +551,7 @@ public class IotDeviceService : IDynamicApiController, ITransient
                 Entity = new IotDevice
                 {
                     DeviceName = name,
+                    OrgId = LongCell(row, "组织Id", SqlSugarConst.DefaultTenantId),
                     Index = IntCell(row, "排序"),
                     AutoStart = BoolCell(row, "启动"),
                     CgUpload = BoolCell(row, "变化上传"),
@@ -631,6 +657,14 @@ public class IotDeviceService : IDynamicApiController, ITransient
             : (double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var number) ? (int)number : defaultValue);
     }
 
+    private static long LongCell(IDictionary<string, object> row, string key, long defaultValue = 0)
+    {
+        var value = Cell(row, key);
+        return long.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var result)
+            ? result
+            : (double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var number) ? (long)number : defaultValue);
+    }
+
     private static bool BoolCell(IDictionary<string, object> row, string key, bool defaultValue = false)
     {
         var value = Cell(row, key);
@@ -704,6 +738,14 @@ public class IotDeviceService : IDynamicApiController, ITransient
         }
     }
 
+    private async Task ValidateParentAsync(long? parentId, long orgId)
+    {
+        if (parentId is not > 0) return;
+        var parent = await _orgScope.EnsureDeviceAccessAsync(parentId.Value);
+        if (parent.DeviceTypeEnum != IotDeviceTypeEnum.Group) throw Oops.Oh("父级必须是设备分组");
+        if (parent.OrgId != orgId) throw Oops.Oh("父级分组与设备必须属于同一组织");
+    }
+
     private void FillRuntimeValues(List<IotDeviceVariable> variables)
     {
         if (Runtime == null || variables.Count == 0) return;
@@ -722,16 +764,21 @@ public class IotDeviceService : IDynamicApiController, ITransient
         }
     }
 
-    private async Task FillDriverNameAsync(IEnumerable<IotDevice> devices)
+    private async Task FillDeviceMetadataAsync(IEnumerable<IotDevice> devices)
     {
         var list = devices?.ToList();
         if (list == null || list.Count == 0) return;
 
         var driverIds = list.Where(u => u.DriverId.HasValue).Select(u => u.DriverId.Value).Distinct().ToList();
-        if (driverIds.Count == 0) return;
-
-        var drivers = await _driverRep.AsQueryable().Where(u => driverIds.Contains(u.Id)).ToListAsync();
+        var drivers = driverIds.Count == 0
+            ? new List<IotDriver>()
+            : await _driverRep.AsQueryable().Where(u => driverIds.Contains(u.Id)).ToListAsync();
+        var orgIds = list.Select(u => u.OrgId).Distinct().ToList();
+        var orgs = await _deviceRep.Context.Queryable<SysOrg>().Where(u => orgIds.Contains(u.Id)).ToListAsync();
         foreach (var device in list)
+        {
             device.DriverName = drivers.FirstOrDefault(u => u.Id == device.DriverId)?.DriverName;
+            device.OrgName = orgs.FirstOrDefault(u => u.Id == device.OrgId)?.Name;
+        }
     }
 }

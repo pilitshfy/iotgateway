@@ -133,3 +133,81 @@ public enum IotPlatformTypeEnum
     [Display(Name = "IoTGateway")] IoTGateway = 8,
     [Display(Name = "ThingsPanel")] ThingsPanel = 9
 }
+
+/// <summary>
+/// 告警级别
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum IotAlarmSeverityEnum
+{
+    [Display(Name = "提示")] Info = 0,
+    [Display(Name = "一般")] Warning = 1,
+    [Display(Name = "严重")] Critical = 2,
+    [Display(Name = "紧急")] Emergency = 3
+}
+
+/// <summary>
+/// 告警条件组合方式
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum IotAlarmCombineModeEnum
+{
+    [Display(Name = "全部满足")] All = 0,
+    [Display(Name = "任一满足")] Any = 1
+}
+
+/// <summary>
+/// 告警比较方式，变化率单位均为“单位/分钟”
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum IotAlarmOperatorEnum
+{
+    [Display(Name = "大于")] GreaterThan = 0,
+    [Display(Name = "大于等于")] GreaterOrEqual = 1,
+    [Display(Name = "小于")] LessThan = 2,
+    [Display(Name = "小于等于")] LessOrEqual = 3,
+    [Display(Name = "等于")] Equal = 4,
+    [Display(Name = "不等于")] NotEqual = 5,
+    [Display(Name = "区间内")] Between = 6,
+    [Display(Name = "区间外")] Outside = 7,
+    [Display(Name = "状态等于")] StatusEqual = 8,
+    [Display(Name = "状态不等于")] StatusNotEqual = 9,
+    [Display(Name = "变化率大于")] RateGreater = 10,
+    [Display(Name = "变化率小于")] RateLess = 11,
+    [Display(Name = "绝对变化率大于")] RateAbsoluteGreater = 12
+}
+
+/// <summary>
+/// 告警事件生命周期
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum IotAlarmEventStatusEnum
+{
+    [Display(Name = "活动中")] Active = 0,
+    [Display(Name = "已确认")] Acknowledged = 1,
+    [Display(Name = "已恢复")] Recovered = 2,
+    [Display(Name = "已闭环")] Closed = 3
+}
+
+/// <summary>
+/// 告警通知渠道类型
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum IotAlarmChannelTypeEnum
+{
+    [Display(Name = "邮件")] Email = 0,
+    [Display(Name = "钉钉")] DingTalk = 1,
+    [Display(Name = "飞书")] Feishu = 2
+}
+
+/// <summary>
+/// 告警通知类型
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum IotAlarmNotificationTypeEnum
+{
+    [Display(Name = "告警触发")] Trigger = 0,
+    [Display(Name = "重复提醒")] Reminder = 1,
+    [Display(Name = "告警恢复")] Recovery = 2,
+    [Display(Name = "渠道测试")] Test = 3
+}

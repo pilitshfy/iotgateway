@@ -95,6 +95,42 @@ export const iotRpcLogApi = {
 };
 
 /**
+ * IoT 告警规则
+ */
+export const iotAlarmRuleApi = {
+	page: (data: any) => request({ url: '/api/iotAlarmRule/page', method: 'post', data }),
+	detail: (id: number) => request({ url: '/api/iotAlarmRule/detail', method: 'get', params: { id } }),
+	add: (data: any) => request({ url: '/api/iotAlarmRule/add', method: 'post', data }),
+	update: (data: any) => request({ url: '/api/iotAlarmRule/update', method: 'post', data }),
+	delete: (id: number) => request({ url: '/api/iotAlarmRule/delete', method: 'post', data: { id } }),
+};
+
+/**
+ * IoT 告警事件
+ */
+export const iotAlarmEventApi = {
+	page: (data: any) => request({ url: '/api/iotAlarmEvent/page', method: 'post', data }),
+	detail: (id: number) => request({ url: '/api/iotAlarmEvent/detail', method: 'get', params: { id } }),
+	list: (params: any) => request({ url: '/api/iotAlarmEvent/list', method: 'get', params }),
+	overview: (params?: any) => request({ url: '/api/iotAlarmEvent/overview', method: 'get', params }),
+	ack: (data: { id: number; remark?: string }) => request({ url: '/api/iotAlarmEvent/ack', method: 'post', data }),
+	close: (data: { id: number; remark?: string }) => request({ url: '/api/iotAlarmEvent/close', method: 'post', data }),
+};
+
+/**
+ * IoT 告警通知渠道与通知日志
+ */
+export const iotAlarmChannelApi = {
+	page: (data: any) => request({ url: '/api/iotAlarmChannel/page', method: 'post', data }),
+	options: () => request({ url: '/api/iotAlarmChannel/options', method: 'get' }),
+	add: (data: any) => request({ url: '/api/iotAlarmChannel/add', method: 'post', data }),
+	update: (data: any) => request({ url: '/api/iotAlarmChannel/update', method: 'post', data }),
+	delete: (id: number) => request({ url: '/api/iotAlarmChannel/delete', method: 'post', data: { id } }),
+	test: (id: number) => request({ url: '/api/iotAlarmChannel/test', method: 'post', data: { id } }),
+	notificationPage: (data: any) => request({ url: '/api/iotAlarmChannel/notificationPage', method: 'post', data }),
+};
+
+/**
  * IoT 历史数据（TimescaleDB）
  */
 export const iotHistoryApi = {

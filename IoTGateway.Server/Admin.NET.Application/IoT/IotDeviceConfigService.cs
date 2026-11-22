@@ -16,11 +16,13 @@ namespace Admin.NET.Application;
 public class IotDeviceConfigService : IDynamicApiController, ITransient
 {
     private readonly SqlSugarRepository<IotDeviceConfig> _configRep;
+    private readonly IotOrgScopeService _orgScope;
     private readonly IServiceProvider _serviceProvider;
 
-    public IotDeviceConfigService(SqlSugarRepository<IotDeviceConfig> configRep, IServiceProvider serviceProvider)
+    public IotDeviceConfigService(SqlSugarRepository<IotDeviceConfig> configRep, IotOrgScopeService orgScope, IServiceProvider serviceProvider)
     {
         _configRep = configRep;
+        _orgScope = orgScope;
         _serviceProvider = serviceProvider;
     }
 
@@ -32,7 +34,10 @@ public class IotDeviceConfigService : IDynamicApiController, ITransient
     [DisplayName("通讯配置分页列表"), HttpPost]
     public async Task<SqlSugarPagedList<IotDeviceConfig>> Page([FromBody] IotDeviceConfigPageInput input)
     {
+        if (input.DeviceId.HasValue) await _orgScope.EnsureDeviceAccessAsync(input.DeviceId.Value);
+        var deviceIds = await (await _orgScope.DeviceQueryAsync()).Select(u => u.Id).ToListAsync();
         return await _configRep.AsQueryable()
+            .Where(u => deviceIds.Contains(u.DeviceId))
             .WhereIF(input.DeviceId.HasValue, u => u.DeviceId == input.DeviceId)
             .WhereIF(!string.IsNullOrWhiteSpace(input.Keyword), u => u.DeviceConfigName.Contains(input.Keyword))
             .OrderBy(u => u.Id)
@@ -45,6 +50,7 @@ public class IotDeviceConfigService : IDynamicApiController, ITransient
     [DisplayName("通讯配置列表"), HttpGet]
     public async Task<List<IotDeviceConfig>> List([FromQuery] long deviceId)
     {
+        await _orgScope.EnsureDeviceAccessAsync(deviceId);
         return await _configRep.AsQueryable()
             .Where(u => u.DeviceId == deviceId)
             .OrderBy(u => u.Id)
@@ -59,7 +65,10 @@ public class IotDeviceConfigService : IDynamicApiController, ITransient
     {
         if (input?.Ids == null || input.Ids.Count == 0) return;
 
-        var configs = await _configRep.AsQueryable().Where(u => input.Ids.Contains(u.Id)).ToListAsync();
+        var ids = input.Ids.Distinct().ToList();
+        var configs = await _configRep.AsQueryable().Where(u => ids.Contains(u.Id)).ToListAsync();
+        if (configs.Count != ids.Count) throw Oops.Oh("部分通讯配置不存在或无权访问");
+        await _orgScope.GetAccessibleDevicesAsync(configs.Select(u => u.DeviceId));
         foreach (var db in configs)
         {
             if (input.DataSide.HasValue) db.DataSide = input.DataSide.Value;
@@ -79,8 +88,11 @@ public class IotDeviceConfigService : IDynamicApiController, ITransient
     [DisplayName("导出通讯配置"), ApiDescriptionSettings(Name = "Export"), HttpGet]
     public async Task<IActionResult> Export([FromQuery] long? deviceId)
     {
-        var devices = await _configRep.Context.Queryable<IotDevice>().ToListAsync();
+        if (deviceId.HasValue) await _orgScope.EnsureDeviceAccessAsync(deviceId.Value);
+        var devices = await (await _orgScope.DeviceQueryAsync()).ToListAsync();
+        var deviceIds = devices.Select(u => u.Id).ToList();
         var configs = await _configRep.AsQueryable()
+            .Where(u => deviceIds.Contains(u.DeviceId))
             .WhereIF(deviceId.HasValue, u => u.DeviceId == deviceId)
             .OrderBy(u => new { u.DeviceId, u.DeviceConfigName })
             .ToListAsync();
@@ -110,6 +122,7 @@ public class IotDeviceConfigService : IDynamicApiController, ITransient
     [DisplayName("新增通讯配置"), ApiDescriptionSettings(Name = "Add"), HttpPost]
     public async Task<long> Add([FromBody] IotDeviceConfig input)
     {
+        await _orgScope.EnsureDeviceAccessAsync(input.DeviceId);
         input.Id = 0;
         await _configRep.InsertAsync(input);
         if (Runtime != null) await Runtime.RestartDeviceAsync(input.DeviceId);
@@ -123,6 +136,8 @@ public class IotDeviceConfigService : IDynamicApiController, ITransient
     public async Task Update([FromBody] IotDeviceConfig input)
     {
         var db = await _configRep.GetByIdAsync(input.Id) ?? throw Oops.Oh("通讯配置不存在");
+        await _orgScope.EnsureDeviceAccessAsync(db.DeviceId);
+        await _orgScope.EnsureDeviceAccessAsync(input.DeviceId);
         var oldDeviceId = db.DeviceId;
         db.DeviceConfigName = input.DeviceConfigName;
         db.DataSide = input.DataSide;
@@ -144,7 +159,8 @@ public class IotDeviceConfigService : IDynamicApiController, ITransient
     [DisplayName("删除通讯配置"), ApiDescriptionSettings(Name = "Delete"), HttpPost]
     public async Task Delete([FromBody] IotIdInput input)
     {
-        var db = await _configRep.GetByIdAsync(input.Id);
+        var db = await _configRep.GetByIdAsync(input.Id) ?? throw Oops.Oh("通讯配置不存在");
+        await _orgScope.EnsureDeviceAccessAsync(db.DeviceId);
         await _configRep.DeleteByIdAsync(input.Id);
         if (db != null && Runtime != null) await Runtime.RestartDeviceAsync(db.DeviceId);
     }
@@ -156,8 +172,12 @@ public class IotDeviceConfigService : IDynamicApiController, ITransient
     public async Task BatchDelete([FromBody] IotIdsInput input)
     {
         if (input?.Ids == null || input.Ids.Count == 0) return;
-        var deviceIds = await _configRep.AsQueryable().Where(u => input.Ids.Contains(u.Id)).Select(u => u.DeviceId).Distinct().ToListAsync();
-        await _configRep.Context.Deleteable<IotDeviceConfig>().In(input.Ids).ExecuteCommandAsync();
+        var ids = input.Ids.Distinct().ToList();
+        var configs = await _configRep.AsQueryable().Where(u => ids.Contains(u.Id)).ToListAsync();
+        if (configs.Count != ids.Count) throw Oops.Oh("部分通讯配置不存在或无权访问");
+        var deviceIds = configs.Select(u => u.DeviceId).Distinct().ToList();
+        await _orgScope.GetAccessibleDevicesAsync(deviceIds);
+        await _configRep.Context.Deleteable<IotDeviceConfig>().In(ids).ExecuteCommandAsync();
         if (Runtime != null)
             foreach (var deviceId in deviceIds)
                 await Runtime.RestartDeviceAsync(deviceId);

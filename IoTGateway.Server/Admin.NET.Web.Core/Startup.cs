@@ -57,6 +57,14 @@ public class Startup : AppStartup
         // IoT MCP 服务（工具见 IotMcpTools）
         services.AddMcpServer().WithTools<IotMcpTools>();
 
+        // IoT 实时告警：采集样本与通知分别使用有界队列，避免外部渠道阻塞采集
+        services.AddHttpClient();
+        services.AddSingleton<IIotAlarmNotifier, IotAlarmNotifier>();
+        services.AddSingleton<IotAlarmEngine>();
+        services.AddSingleton<IIotAlarmSink>(sp => sp.GetRequiredService<IotAlarmEngine>());
+        services.AddSingleton<IIotAlarmRuntime>(sp => sp.GetRequiredService<IotAlarmEngine>());
+        services.AddHostedService(sp => sp.GetRequiredService<IotAlarmEngine>());
+
         // IoT 驱动与设备采集运行时
         services.AddSingleton<IotDriverManager>();
         services.AddSingleton<IIotDriverProvider>(sp => sp.GetRequiredService<IotDriverManager>());
@@ -83,6 +91,7 @@ public class Startup : AppStartup
         services.AddCache();
         // SqlSugar
         services.AddSqlSugar();
+        IotOrgSchemaMigration.Migrate();
         // JWT
         services.AddJwt<JwtHandler>(enableGlobalAuthorize: true, jwtBearerConfigure: options =>
         {
@@ -431,8 +440,8 @@ public class Startup : AppStartup
             // MQTT WebSocket 端点（ws://host:1888/mqtt）
             endpoints.MapMqtt("/mqtt");
 
-            // MCP 端点（与旧工程一致：SSE http://host:5005/sse，消息 http://host:5005/message）
-            endpoints.MapMcp().AllowAnonymous();
+            // MCP 端点（SSE http://host:5005/sse，消息 http://host:5005/message）
+            endpoints.MapMcp().RequireAuthorization();
 
             // 配置 Scalar 第三方 UI 集成（路由前缀一致代表独立，不同则代表共存）
             if (App.GetConfig<bool>("AppSettings:InjectSpecificationDocument", true))

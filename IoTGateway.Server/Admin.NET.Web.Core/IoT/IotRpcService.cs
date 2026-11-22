@@ -88,10 +88,12 @@ public class IotRpcRuntime : BackgroundService
 public class IotRpcInvokeService : IDynamicApiController, ITransient
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly IotOrgScopeService _orgScope;
 
-    public IotRpcInvokeService(IServiceProvider serviceProvider)
+    public IotRpcInvokeService(IServiceProvider serviceProvider, IotOrgScopeService orgScope)
     {
         _serviceProvider = serviceProvider;
+        _orgScope = orgScope;
     }
 
     /// <summary>
@@ -102,6 +104,8 @@ public class IotRpcInvokeService : IDynamicApiController, ITransient
     {
         input ??= new IotRpcRequestDto();
         input.RequestId ??= Guid.NewGuid().ToString();
+
+        await _orgScope.EnsureDeviceAccessAsync(input.DeviceName);
 
         var runtime = _serviceProvider.GetService<IIotDeviceRuntime>();
         if (runtime == null)

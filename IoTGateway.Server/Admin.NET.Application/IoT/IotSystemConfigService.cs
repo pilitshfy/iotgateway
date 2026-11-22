@@ -11,11 +11,13 @@ public class IotSystemConfigService : IDynamicApiController, ITransient
 {
     private readonly SqlSugarRepository<IotSystemConfig> _configRep;
     private readonly IServiceProvider _serviceProvider;
+    private readonly IotOrgScopeService _orgScope;
 
-    public IotSystemConfigService(SqlSugarRepository<IotSystemConfig> configRep, IServiceProvider serviceProvider)
+    public IotSystemConfigService(SqlSugarRepository<IotSystemConfig> configRep, IServiceProvider serviceProvider, IotOrgScopeService orgScope)
     {
         _configRep = configRep;
         _serviceProvider = serviceProvider;
+        _orgScope = orgScope;
     }
 
     private IIotPlatformRuntime PlatformRuntime => _serviceProvider.GetService<IIotPlatformRuntime>();
@@ -26,6 +28,7 @@ public class IotSystemConfigService : IDynamicApiController, ITransient
     [DisplayName("获取传输配置"), ApiDescriptionSettings(Name = "Get"), HttpGet]
     public async Task<IotSystemConfig> Get()
     {
+        _orgScope.EnsureSuperAdmin();
         var config = await _configRep.AsQueryable().FirstAsync();
         return config ?? new IotSystemConfig
         {
@@ -43,6 +46,7 @@ public class IotSystemConfigService : IDynamicApiController, ITransient
     [DisplayName("保存传输配置"), ApiDescriptionSettings(Name = "Save"), HttpPost]
     public async Task Save([FromBody] IotSystemConfig input)
     {
+        _orgScope.EnsureSuperAdmin();
         var db = await _configRep.AsQueryable().FirstAsync();
         if (db == null)
         {

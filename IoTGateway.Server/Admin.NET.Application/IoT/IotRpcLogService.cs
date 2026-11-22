@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Data;
+using Furion.FriendlyException;
 using Microsoft.AspNetCore.Mvc;
 using MiniExcelLibs;
 using SqlSugar;
@@ -13,10 +14,12 @@ namespace Admin.NET.Application;
 public class IotRpcLogService : IDynamicApiController, ITransient
 {
     private readonly SqlSugarRepository<IotRpcLog> _rpcLogRep;
+    private readonly IotOrgScopeService _orgScope;
 
-    public IotRpcLogService(SqlSugarRepository<IotRpcLog> rpcLogRep)
+    public IotRpcLogService(SqlSugarRepository<IotRpcLog> rpcLogRep, IotOrgScopeService orgScope)
     {
         _rpcLogRep = rpcLogRep;
+        _orgScope = orgScope;
     }
 
     /// <summary>
@@ -25,7 +28,9 @@ public class IotRpcLogService : IDynamicApiController, ITransient
     [DisplayName("RPC日志分页列表"), HttpPost]
     public async Task<SqlSugarPagedList<IotRpcLog>> Page([FromBody] IotRpcLogPageInput input)
     {
-        return await _rpcLogRep.AsQueryable()
+        if (input.DeviceId.HasValue) await _orgScope.EnsureDeviceAccessAsync(input.DeviceId.Value);
+        var query = await ApplyScopeAsync();
+        return await query
             .WhereIF(input.DeviceId.HasValue, u => u.DeviceId == input.DeviceId)
             .WhereIF(!string.IsNullOrWhiteSpace(input.Keyword), u => u.Method.Contains(input.Keyword))
             .OrderBy(u => u.StartTime, OrderByType.Desc)
@@ -38,7 +43,9 @@ public class IotRpcLogService : IDynamicApiController, ITransient
     [DisplayName("RPC日志详情"), HttpGet]
     public async Task<IotRpcLog> Detail([FromQuery] long id)
     {
-        return await _rpcLogRep.GetByIdAsync(id);
+        var log = await _rpcLogRep.GetByIdAsync(id) ?? throw Oops.Oh("RPC日志不存在");
+        await EnsureLogAccessAsync(log);
+        return log;
     }
 
     /// <summary>
@@ -47,12 +54,13 @@ public class IotRpcLogService : IDynamicApiController, ITransient
     [DisplayName("导出RPC日志"), ApiDescriptionSettings(Name = "Export"), HttpGet]
     public async Task<IActionResult> Export([FromQuery] long? deviceId, [FromQuery] string keyword)
     {
-        var logs = await _rpcLogRep.AsQueryable()
+        if (deviceId.HasValue) await _orgScope.EnsureDeviceAccessAsync(deviceId.Value);
+        var logs = await (await ApplyScopeAsync())
             .WhereIF(deviceId.HasValue, u => u.DeviceId == deviceId)
             .WhereIF(!string.IsNullOrWhiteSpace(keyword), u => u.Method.Contains(keyword))
             .OrderBy(u => u.StartTime, OrderByType.Desc)
             .ToListAsync();
-        var devices = await _rpcLogRep.Context.Queryable<IotDevice>().ToListAsync();
+        var devices = await (await _orgScope.DeviceQueryAsync()).ToListAsync();
         var deviceNames = devices.ToDictionary(u => u.Id, u => u.DeviceName);
 
         var table = new DataTable("RPC日志");
@@ -79,6 +87,8 @@ public class IotRpcLogService : IDynamicApiController, ITransient
     [DisplayName("删除RPC日志"), ApiDescriptionSettings(Name = "Delete"), HttpPost]
     public async Task Delete([FromBody] IotIdInput input)
     {
+        var log = await _rpcLogRep.GetByIdAsync(input.Id) ?? throw Oops.Oh("RPC日志不存在");
+        await EnsureLogAccessAsync(log);
         await _rpcLogRep.DeleteByIdAsync(input.Id);
     }
 
@@ -89,7 +99,11 @@ public class IotRpcLogService : IDynamicApiController, ITransient
     public async Task BatchDelete([FromBody] IotIdsInput input)
     {
         if (input?.Ids == null || input.Ids.Count == 0) return;
-        await _rpcLogRep.Context.Deleteable<IotRpcLog>().In(input.Ids).ExecuteCommandAsync();
+        var ids = input.Ids.Distinct().ToList();
+        var logs = await _rpcLogRep.AsQueryable().Where(u => ids.Contains(u.Id)).ToListAsync();
+        if (logs.Count != ids.Count) throw Oops.Oh("部分RPC日志不存在或无权访问");
+        foreach (var log in logs) await EnsureLogAccessAsync(log);
+        await _rpcLogRep.Context.Deleteable<IotRpcLog>().In(ids).ExecuteCommandAsync();
     }
 
     /// <summary>
@@ -98,6 +112,34 @@ public class IotRpcLogService : IDynamicApiController, ITransient
     [DisplayName("清空RPC日志"), ApiDescriptionSettings(Name = "Clear"), HttpPost]
     public async Task Clear()
     {
-        await _rpcLogRep.Context.Deleteable<IotRpcLog>().Where(u => u.Id > 0).ExecuteCommandAsync();
+        var scope = await _orgScope.GetScopeAsync();
+        if (scope.IsUnrestricted)
+        {
+            await _rpcLogRep.Context.Deleteable<IotRpcLog>().Where(u => u.Id > 0).ExecuteCommandAsync();
+            return;
+        }
+
+        var deviceIds = await (await _orgScope.DeviceQueryAsync()).Select(u => u.Id).ToListAsync();
+        await _rpcLogRep.Context.Deleteable<IotRpcLog>()
+            .Where(u => u.DeviceId.HasValue && deviceIds.Contains(u.DeviceId.Value))
+            .ExecuteCommandAsync();
+    }
+
+    private async Task<ISugarQueryable<IotRpcLog>> ApplyScopeAsync()
+    {
+        var scope = await _orgScope.GetScopeAsync();
+        var query = _rpcLogRep.AsQueryable();
+        if (scope.IsUnrestricted) return query;
+
+        var deviceIds = await (await _orgScope.DeviceQueryAsync()).Select(u => u.Id).ToListAsync();
+        return query.Where(u => u.DeviceId.HasValue && deviceIds.Contains(u.DeviceId.Value));
+    }
+
+    private async Task EnsureLogAccessAsync(IotRpcLog log)
+    {
+        var scope = await _orgScope.GetScopeAsync();
+        if (scope.IsUnrestricted) return;
+        if (!log.DeviceId.HasValue) throw Oops.Oh("无权访问该RPC日志");
+        await _orgScope.EnsureDeviceAccessAsync(log.DeviceId.Value);
     }
 }

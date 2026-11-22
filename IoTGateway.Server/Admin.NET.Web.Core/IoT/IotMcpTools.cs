@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 using Admin.NET.Application;
 using ModelContextProtocol.Server;
+using SqlSugar;
 
 namespace Admin.NET.Web.Core;
 
@@ -15,27 +17,39 @@ namespace Admin.NET.Web.Core;
 public sealed class IotMcpTools
 {
     private readonly IIotDeviceRuntime _runtime;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public IotMcpTools(IIotDeviceRuntime runtime)
+    public IotMcpTools(IIotDeviceRuntime runtime, IServiceScopeFactory scopeFactory)
     {
         _runtime = runtime;
+        _scopeFactory = scopeFactory;
+    }
+
+    private async Task EnsureDeviceAccessAsync(string deviceName)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<IotOrgScopeService>().EnsureDeviceAccessAsync(deviceName);
     }
 
     /// <summary>
     /// 获取子设备列表
     /// </summary>
     [McpServerTool(Name = "DevicesList"), Description("Get the list of sub-devices.")]
-    public IEnumerable<string> DevicesList()
+    public async Task<IEnumerable<string>> DevicesList()
     {
-        return _runtime.GetDeviceNames();
+        using var scope = _scopeFactory.CreateScope();
+        var orgScope = scope.ServiceProvider.GetRequiredService<IotOrgScopeService>();
+        var visibleNames = await (await orgScope.DeviceQueryAsync()).Select(u => u.DeviceName).ToListAsync();
+        return _runtime.GetDeviceNames().Where(visibleNames.Contains).ToList();
     }
 
     /// <summary>
     /// 获取子设备当前连接状态
     /// </summary>
     [McpServerTool, Description("Get the current connection status of the sub-device.")]
-    public bool? GetDeviceStatus([Description("name of device")] string deviceName)
+    public async Task<bool?> GetDeviceStatus([Description("name of device")] string deviceName)
     {
+        await EnsureDeviceAccessAsync(deviceName);
         return _runtime.GetDeviceStatus(deviceName);
     }
 
@@ -43,8 +57,9 @@ public sealed class IotMcpTools
     /// 获取子设备全部变量的当前值
     /// </summary>
     [McpServerTool, Description("Get sub-device variables.")]
-    public Dictionary<string, object> GetDeviceVariables([Description("name of device")] string deviceName)
+    public async Task<Dictionary<string, object>> GetDeviceVariables([Description("name of device")] string deviceName)
     {
+        await EnsureDeviceAccessAsync(deviceName);
         return _runtime.GetDeviceVariablesByName(deviceName)
             .ToDictionary(x => x.Name, x => x.CookedValue);
     }
@@ -53,10 +68,11 @@ public sealed class IotMcpTools
     /// 获取子设备指定变量的当前值
     /// </summary>
     [McpServerTool, Description("Get the current value of a variable of a sub-device.")]
-    public object GetDeviceVariable(
+    public async Task<object> GetDeviceVariable(
         [Description("name of device")] string deviceName,
         [Description("name of variable")] string variableName)
     {
+        await EnsureDeviceAccessAsync(deviceName);
         return _runtime.GetDeviceVariablesByName(deviceName)
             .FirstOrDefault(x => x.Name == variableName)?.CookedValue;
     }
@@ -65,8 +81,9 @@ public sealed class IotMcpTools
     /// 连接设备
     /// </summary>
     [McpServerTool, Description("Connect to a device.")]
-    public bool ConnectDevice([Description("name of device")] string deviceName)
+    public async Task<bool> ConnectDevice([Description("name of device")] string deviceName)
     {
+        await EnsureDeviceAccessAsync(deviceName);
         return _runtime.ConnectDevice(deviceName);
     }
 
@@ -74,8 +91,9 @@ public sealed class IotMcpTools
     /// 断开设备
     /// </summary>
     [McpServerTool, Description("Disconnect from a device.")]
-    public bool DisconnectDevice([Description("name of device")] string deviceName)
+    public async Task<bool> DisconnectDevice([Description("name of device")] string deviceName)
     {
+        await EnsureDeviceAccessAsync(deviceName);
         return _runtime.DisconnectDevice(deviceName);
     }
 
@@ -85,6 +103,7 @@ public sealed class IotMcpTools
     [McpServerTool, Description("Restart device connection.")]
     public async Task<bool> RestartDevice([Description("name of device")] string deviceName)
     {
+        await EnsureDeviceAccessAsync(deviceName);
         return await _runtime.RestartDeviceByNameAsync(deviceName);
     }
 
@@ -92,8 +111,9 @@ public sealed class IotMcpTools
     /// 获取设备详细信息
     /// </summary>
     [McpServerTool, Description("Get detailed device information.")]
-    public Dictionary<string, object> GetDeviceInfo([Description("name of device")] string deviceName)
+    public async Task<Dictionary<string, object>> GetDeviceInfo([Description("name of device")] string deviceName)
     {
+        await EnsureDeviceAccessAsync(deviceName);
         return _runtime.GetDeviceInfo(deviceName);
     }
 
@@ -103,6 +123,7 @@ public sealed class IotMcpTools
     [McpServerTool, Description("Get device driver information.")]
     public async Task<string> GetDeviceDriver([Description("name of device")] string deviceName)
     {
+        await EnsureDeviceAccessAsync(deviceName);
         return await _runtime.GetDeviceDriverNameAsync(deviceName);
     }
 
@@ -115,6 +136,7 @@ public sealed class IotMcpTools
         [Description("name of variable")] string variableName,
         [Description("value to write")] object value)
     {
+        await EnsureDeviceAccessAsync(deviceName);
         var result = await _runtime.ExecuteRpcAsync(new IotRpcRequestDto
         {
             DeviceName = deviceName,

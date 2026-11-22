@@ -2,27 +2,59 @@
 	<div class="iot-page">
 		<el-row :gutter="12" class="iot-stats">
 			<el-col :xs="12" :sm="8" :md="4">
-				<el-card shadow="never"><div class="stat-label">设备总数</div><div class="stat-value">{{ stats.deviceCount || 0 }}</div></el-card>
+				<el-card shadow="never"
+					><div class="stat-label">设备总数</div>
+					<div class="stat-value">{{ stats.deviceCount || 0 }}</div></el-card
+				>
 			</el-col>
 			<el-col :xs="12" :sm="8" :md="4">
-				<el-card shadow="never"><div class="stat-label">在线设备</div><div class="stat-value online">{{ stats.onlineCount || 0 }}</div></el-card>
+				<el-card shadow="never"
+					><div class="stat-label">在线设备</div>
+					<div class="stat-value online">{{ stats.onlineCount || 0 }}</div></el-card
+				>
 			</el-col>
 			<el-col :xs="12" :sm="8" :md="4">
-				<el-card shadow="never"><div class="stat-label">离线设备</div><div class="stat-value offline">{{ stats.offlineCount || 0 }}</div></el-card>
+				<el-card shadow="never"
+					><div class="stat-label">离线设备</div>
+					<div class="stat-value offline">{{ stats.offlineCount || 0 }}</div></el-card
+				>
 			</el-col>
 			<el-col :xs="12" :sm="8" :md="4">
-				<el-card shadow="never"><div class="stat-label">分组数量</div><div class="stat-value">{{ stats.groupCount || 0 }}</div></el-card>
+				<el-card shadow="never"
+					><div class="stat-label">分组数量</div>
+					<div class="stat-value">{{ stats.groupCount || 0 }}</div></el-card
+				>
 			</el-col>
 			<el-col :xs="12" :sm="8" :md="4">
-				<el-card shadow="never"><div class="stat-label">采集变量</div><div class="stat-value">{{ stats.variableCount || 0 }}</div></el-card>
+				<el-card shadow="never"
+					><div class="stat-label">采集变量</div>
+					<div class="stat-value">{{ stats.variableCount || 0 }}</div></el-card
+				>
 			</el-col>
 			<el-col :xs="12" :sm="8" :md="4">
-				<el-card shadow="never"><div class="stat-label">驱动数量</div><div class="stat-value">{{ stats.driverCount || 0 }}</div></el-card>
+				<el-card shadow="never"
+					><div class="stat-label">驱动数量</div>
+					<div class="stat-value">{{ stats.driverCount || 0 }}</div></el-card
+				>
 			</el-col>
 		</el-row>
 
 		<el-card shadow="never">
 			<el-form :inline="true" :model="query" class="iot-search">
+				<el-form-item label="所属组织">
+					<el-tree-select
+						v-model="query.orgId"
+						:data="orgTree"
+						:props="orgTreeProps"
+						node-key="id"
+						check-strictly
+						default-expand-all
+						filterable
+						clearable
+						placeholder="全部组织（含下级）"
+						style="width: 220px"
+					/>
+				</el-form-item>
 				<el-form-item label="设备名称">
 					<el-input v-model="query.keyword" placeholder="请输入设备名称" clearable @keyup.enter="loadData" />
 				</el-form-item>
@@ -36,7 +68,7 @@
 					<el-button @click="resetQuery">重置</el-button>
 					<el-button type="success" @click="openAdd">新增设备</el-button>
 					<el-button @click="exportBackup">导出备份</el-button>
-					<el-upload :auto-upload="false" :show-file-list="false" accept=".xlsx" :on-change="importBackup" style="display: inline-block; margin-left: 12px">
+					<el-upload v-if="isSuperAdmin" :auto-upload="false" :show-file-list="false" accept=".xlsx" :on-change="importBackup" style="display: inline-block; margin-left: 12px">
 						<el-button>导入备份</el-button>
 					</el-upload>
 					<el-button type="warning" :disabled="!selectedIds.length" style="margin-left: 12px" @click="openBatchEdit">批量修改</el-button>
@@ -47,6 +79,7 @@
 			<el-table v-loading="loading" :data="tableData" border stripe @selection-change="onSelectionChange">
 				<el-table-column type="selection" width="46" />
 				<el-table-column prop="deviceName" label="设备名称" min-width="150" />
+				<el-table-column prop="orgName" label="所属组织" min-width="140" show-overflow-tooltip />
 				<el-table-column prop="index" label="排序" width="80" />
 				<el-table-column prop="driverName" label="驱动" min-width="130" />
 				<el-table-column label="类型" width="90">
@@ -91,6 +124,20 @@
 				<el-form-item label="设备名称" required>
 					<el-input v-model="form.deviceName" placeholder="请输入设备名称" />
 				</el-form-item>
+				<el-form-item label="所属组织" required>
+					<el-tree-select
+						v-model="form.orgId"
+						:data="orgTree"
+						:props="orgTreeProps"
+						node-key="id"
+						check-strictly
+						default-expand-all
+						filterable
+						placeholder="请选择所属组织"
+						style="width: 100%"
+						@change="onFormOrgChange"
+					/>
+				</el-form-item>
 				<el-form-item label="类型">
 					<el-select v-model="form.deviceTypeEnum" style="width: 100%">
 						<el-option label="设备" :value="1" />
@@ -104,7 +151,7 @@
 				</el-form-item>
 				<el-form-item label="父级分组">
 					<el-select v-model="form.parentId" placeholder="顶级" clearable style="width: 100%">
-						<el-option v-for="item in groups" :key="item.id" :label="item.deviceName" :value="item.id" />
+						<el-option v-for="item in batchDialogVisible ? batchGroups : formGroups" :key="item.id" :label="item.deviceName" :value="item.id" />
 					</el-select>
 				</el-form-item>
 				<el-form-item label="排序">
@@ -135,6 +182,7 @@
 		<el-drawer v-model="detailVisible" title="设备详情" size="80%">
 			<el-descriptions :column="2" border>
 				<el-descriptions-item label="设备名称">{{ detail.deviceName }}</el-descriptions-item>
+				<el-descriptions-item label="所属组织">{{ detail.orgName }}</el-descriptions-item>
 				<el-descriptions-item label="驱动">{{ detail.driverName }}</el-descriptions-item>
 				<el-descriptions-item label="类型">{{ detail.deviceTypeEnum === 0 ? '分组' : '设备' }}</el-descriptions-item>
 				<el-descriptions-item label="排序">{{ detail.index }}</el-descriptions-item>
@@ -190,7 +238,9 @@
 					<template #default="{ row }">{{ row.cookedValue ?? row.value ?? '-' }}</template>
 				</el-table-column>
 				<el-table-column label="状态" width="110">
-					<template #default="{ row }"><el-tag :type="Number(row.statusType) === 0 ? 'success' : 'danger'">{{ statusLabel(row.statusType) }}</el-tag></template>
+					<template #default="{ row }"
+						><el-tag :type="Number(row.statusType) === 0 ? 'success' : 'danger'">{{ statusLabel(row.statusType) }}</el-tag></template
+					>
 				</el-table-column>
 				<el-table-column prop="timestamp" label="采集时间" min-width="155" />
 				<el-table-column prop="message" label="状态信息" min-width="120" show-overflow-tooltip />
@@ -308,6 +358,22 @@
 		<el-dialog v-model="batchDialogVisible" title="批量修改设备" width="580px" destroy-on-close>
 			<el-alert title="仅勾选的字段会被修改，未勾选字段保持原值。" type="info" :closable="false" style="margin-bottom: 12px" />
 			<el-form label-width="110px">
+				<el-form-item label="所属组织">
+					<el-checkbox v-model="batchForm.useOrgId" style="margin-right: 8px">修改</el-checkbox>
+					<el-tree-select
+						v-model="batchForm.orgId"
+						:data="orgTree"
+						:props="orgTreeProps"
+						node-key="id"
+						check-strictly
+						default-expand-all
+						filterable
+						:disabled="!batchForm.useOrgId"
+						placeholder="请选择目标组织"
+						style="width: 260px"
+						@change="onBatchOrgChange"
+					/>
+				</el-form-item>
 				<el-form-item label="驱动">
 					<el-checkbox v-model="batchForm.useDriverId" style="margin-right: 8px">修改</el-checkbox>
 					<el-select v-model="batchForm.driverId" clearable :disabled="!batchForm.useDriverId" style="width: 260px">
@@ -317,7 +383,7 @@
 				<el-form-item label="父级分组">
 					<el-checkbox v-model="batchForm.useParentId" style="margin-right: 8px">修改</el-checkbox>
 					<el-select v-model="batchForm.parentId" clearable :disabled="!batchForm.useParentId" style="width: 260px">
-						<el-option v-for="item in groups" :key="item.id" :label="item.deviceName" :value="item.id" />
+						<el-option v-for="item in batchDialogVisible ? batchGroups : formGroups" :key="item.id" :label="item.deviceName" :value="item.id" />
 					</el-select>
 				</el-form-item>
 				<el-form-item label="启动">
@@ -419,15 +485,22 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { iotDeviceApi, iotDeviceConfigApi, iotDeviceVariableApi, iotDriverApi } from '/@/api/iot';
+import { getAPI } from '/@/utils/axios-utils';
+import { SysOrgApi } from '/@/api-services/api';
+import { useUserInfo } from '/@/stores/userInfo';
 
 const loading = ref(false);
 const saving = ref(false);
 const tableData = ref([]);
 const drivers = ref([]);
 const groups = ref([]);
+const orgTree = ref([]);
+const orgTreeProps = { label: 'name', children: 'children', disabled: 'disabled' };
+const userStore = useUserInfo();
+const isSuperAdmin = computed(() => Number(userStore.userInfos.accountType) === 999);
 const total = ref(0);
 const stats = ref({});
 const dialogVisible = ref(false);
@@ -441,12 +514,20 @@ const selectedIds = ref([]);
 const batchDialogVisible = ref(false);
 const batchSaving = ref(false);
 const batchForm = reactive({
-	useDriverId: false, driverId: null,
-	useParentId: false, parentId: null,
-	useAutoStart: false, autoStart: true,
-	useCgUpload: false, cgUpload: false,
-	useEnforcePeriod: false, enforcePeriod: 0,
-	useCmdPeriod: false, cmdPeriod: 1000,
+	useOrgId: false,
+	orgId: null,
+	useDriverId: false,
+	driverId: null,
+	useParentId: false,
+	parentId: null,
+	useAutoStart: false,
+	autoStart: true,
+	useCgUpload: false,
+	cgUpload: false,
+	useEnforcePeriod: false,
+	enforcePeriod: 0,
+	useCmdPeriod: false,
+	cmdPeriod: 1000,
 });
 
 const configSelection = ref([]);
@@ -458,13 +539,20 @@ const variableSelection = ref([]);
 const variableBatchVisible = ref(false);
 const variableBatchSaving = ref(false);
 const variableBatchForm = reactive({
-	useMethod: false, method: '',
-	useDataType: false, dataType: 9,
-	useEndianType: false, endianType: 2,
-	useProtectType: false, protectType: 0,
-	useIsUpload: false, isUpload: true,
-	useIsTrigger: false, isTrigger: false,
-	useIndex: false, index: 0,
+	useMethod: false,
+	method: '',
+	useDataType: false,
+	dataType: 9,
+	useEndianType: false,
+	endianType: 2,
+	useProtectType: false,
+	protectType: 0,
+	useIsUpload: false,
+	isUpload: true,
+	useIsTrigger: false,
+	isTrigger: false,
+	useIndex: false,
+	index: 0,
 });
 
 const downloadBlob = (data, filename) => {
@@ -503,30 +591,59 @@ const variableForm = reactive({
 });
 
 const dataTypeOptions = [
-	{ value: 0, label: 'bit' }, { value: 1, label: 'bool' }, { value: 2, label: 'uint8' }, { value: 3, label: 'int8' },
-	{ value: 4, label: 'uint16' }, { value: 5, label: 'int16' }, { value: 6, label: 'bcd16' }, { value: 7, label: 'uint32' },
-	{ value: 8, label: 'int32' }, { value: 9, label: 'float' }, { value: 10, label: 'bcd32' }, { value: 11, label: 'uint64' },
-	{ value: 12, label: 'int64' }, { value: 13, label: 'double' }, { value: 14, label: 'ascii' }, { value: 15, label: 'utf8' },
-	{ value: 16, label: 'datetime' }, { value: 17, label: 'timestamp(ms)' }, { value: 18, label: 'timestamp(s)' }, { value: 19, label: 'Any' },
+	{ value: 0, label: 'bit' },
+	{ value: 1, label: 'bool' },
+	{ value: 2, label: 'uint8' },
+	{ value: 3, label: 'int8' },
+	{ value: 4, label: 'uint16' },
+	{ value: 5, label: 'int16' },
+	{ value: 6, label: 'bcd16' },
+	{ value: 7, label: 'uint32' },
+	{ value: 8, label: 'int32' },
+	{ value: 9, label: 'float' },
+	{ value: 10, label: 'bcd32' },
+	{ value: 11, label: 'uint64' },
+	{ value: 12, label: 'int64' },
+	{ value: 13, label: 'double' },
+	{ value: 14, label: 'ascii' },
+	{ value: 15, label: 'utf8' },
+	{ value: 16, label: 'datetime' },
+	{ value: 17, label: 'timestamp(ms)' },
+	{ value: 18, label: 'timestamp(s)' },
+	{ value: 19, label: 'Any' },
 	{ value: 25, label: 'Gb2312' },
 ];
 const endianOptions = [
-	{ value: 0, label: 'None' }, { value: 1, label: 'BigEndian' }, { value: 2, label: 'LittleEndian' },
-	{ value: 3, label: 'BigEndianSwap' }, { value: 4, label: 'LittleEndianSwap' },
+	{ value: 0, label: 'None' },
+	{ value: 1, label: 'BigEndian' },
+	{ value: 2, label: 'LittleEndian' },
+	{ value: 3, label: 'BigEndianSwap' },
+	{ value: 4, label: 'LittleEndianSwap' },
 ];
 
 const dataSideLabel = (v) => (Number(v) === 2 ? '客户端' : '任意侧');
 const dataTypeLabel = (v) => dataTypeOptions.find((x) => x.value === Number(v))?.label ?? v;
 const protectLabel = (v) => ['只读', '读写', '只写'][Number(v)] ?? v;
-const statusLabel = (v) => ({
-	0: '正常', 1: '地址错误', 2: '方法错误', 3: '表达式错误', 4: '异常', 5: '未采集',
-	6: '自定义1', 7: '自定义2', 8: '自定义3', 9: '自定义4', 10: '自定义5',
-})[Number(v)] ?? v;
+const statusLabel = (v) =>
+	({
+		0: '正常',
+		1: '地址错误',
+		2: '方法错误',
+		3: '表达式错误',
+		4: '异常',
+		5: '未采集',
+		6: '自定义1',
+		7: '自定义2',
+		8: '自定义3',
+		9: '自定义4',
+		10: '自定义5',
+	})[Number(v)] ?? v;
 
-const query = reactive({ keyword: '', driverId: null, page: 1, pageSize: 20 });
+const query = reactive({ keyword: '', driverId: null, orgId: null, page: 1, pageSize: 20 });
 const form = reactive({
 	id: 0,
 	deviceName: '',
+	orgId: userStore.userInfos.orgId || null,
 	deviceTypeEnum: 1,
 	driverId: null,
 	index: 0,
@@ -537,6 +654,9 @@ const form = reactive({
 	description: '',
 	parentId: null,
 });
+
+const formGroups = computed(() => groups.value.filter((item) => item.id !== form.id && (!form.orgId || item.orgId === form.orgId)));
+const batchGroups = computed(() => groups.value.filter((item) => !batchForm.useOrgId || !batchForm.orgId || item.orgId === batchForm.orgId));
 
 const loadStats = async () => {
 	try {
@@ -558,19 +678,25 @@ const loadData = async () => {
 	}
 };
 
+const loadOrgs = async () => {
+	const res = await getAPI(SysOrgApi).apiSysOrgTreeGet(0);
+	orgTree.value = res.data.result || [];
+};
+
 const loadDrivers = async () => {
 	const res = await iotDeviceApi.driverList();
 	drivers.value = res.data.result || [];
 };
 
 const loadGroups = async () => {
-	const res = await iotDeviceApi.page({ keyword: '', page: 1, pageSize: 500 });
-	groups.value = (res.data.result.items || []).filter((x) => x.deviceTypeEnum === 0);
+	const res = await iotDeviceApi.list({ deviceTypeEnum: 0 });
+	groups.value = res.data.result || [];
 };
 
 const resetQuery = () => {
 	query.keyword = '';
 	query.driverId = null;
+	query.orgId = null;
 	query.page = 1;
 	loadData();
 };
@@ -579,6 +705,7 @@ const resetForm = () => {
 	Object.assign(form, {
 		id: 0,
 		deviceName: '',
+		orgId: userStore.userInfos.orgId || null,
 		deviceTypeEnum: 1,
 		driverId: null,
 		index: 0,
@@ -591,6 +718,16 @@ const resetForm = () => {
 	});
 };
 
+const onFormOrgChange = () => {
+	const parent = groups.value.find((item) => item.id === form.parentId);
+	if (parent && parent.orgId !== form.orgId) form.parentId = null;
+};
+
+const onBatchOrgChange = () => {
+	const parent = groups.value.find((item) => item.id === batchForm.parentId);
+	if (parent && parent.orgId !== batchForm.orgId) batchForm.parentId = null;
+};
+
 const openAdd = () => {
 	resetForm();
 	dialogVisible.value = true;
@@ -599,6 +736,7 @@ const openAdd = () => {
 const openEdit = (row) => {
 	Object.assign(form, {
 		id: row.id,
+		orgId: row.orgId,
 		deviceName: row.deviceName,
 		deviceTypeEnum: row.deviceTypeEnum,
 		driverId: row.driverId,
@@ -616,6 +754,10 @@ const openEdit = (row) => {
 const save = async () => {
 	if (!form.deviceName) {
 		ElMessage.warning('请输入设备名称');
+		return;
+	}
+	if (!form.orgId) {
+		ElMessage.warning('请选择所属组织');
 		return;
 	}
 	saving.value = true;
@@ -687,18 +829,33 @@ const onSelectionChange = (rows) => {
 
 const openBatchEdit = () => {
 	Object.assign(batchForm, {
-		useDriverId: false, driverId: null,
-		useParentId: false, parentId: null,
-		useAutoStart: false, autoStart: true,
-		useCgUpload: false, cgUpload: false,
-		useEnforcePeriod: false, enforcePeriod: 0,
-		useCmdPeriod: false, cmdPeriod: 1000,
+		useOrgId: false,
+		orgId: null,
+		useDriverId: false,
+		driverId: null,
+		useParentId: false,
+		parentId: null,
+		useAutoStart: false,
+		autoStart: true,
+		useCgUpload: false,
+		cgUpload: false,
+		useEnforcePeriod: false,
+		enforcePeriod: 0,
+		useCmdPeriod: false,
+		cmdPeriod: 1000,
 	});
 	batchDialogVisible.value = true;
 };
 
 const submitBatchEdit = async () => {
 	const data = { ids: selectedIds.value };
+	if (batchForm.useOrgId) {
+		if (!batchForm.orgId) {
+			ElMessage.warning('请选择目标组织');
+			return;
+		}
+		data.orgId = batchForm.orgId;
+	}
 	if (batchForm.useDriverId && batchForm.driverId) data.driverId = batchForm.driverId;
 	if (batchForm.useParentId) data.parentId = batchForm.parentId || 0;
 	if (batchForm.useAutoStart) data.autoStart = batchForm.autoStart;
@@ -715,6 +872,7 @@ const submitBatchEdit = async () => {
 		ElMessage.success('批量修改成功');
 		batchDialogVisible.value = false;
 		await loadData();
+		await loadGroups();
 		await loadStats();
 	} finally {
 		batchSaving.value = false;
@@ -743,10 +901,7 @@ const loadDriverMeta = async () => {
 	if (!driver?.assembleName) return;
 
 	try {
-		const [configRes, methodRes] = await Promise.all([
-			iotDriverApi.driverConfigs(driver.assembleName),
-			iotDriverApi.driverMethods(driver.assembleName),
-		]);
+		const [configRes, methodRes] = await Promise.all([iotDriverApi.driverConfigs(driver.assembleName), iotDriverApi.driverMethods(driver.assembleName)]);
 		driverConfigs.value = configRes.data.result || [];
 		methodOptions.value = methodRes.data.result || [];
 	} catch {
@@ -926,13 +1081,20 @@ const onVariableSelectionChange = (rows) => {
 
 const openVariableBatchEdit = () => {
 	Object.assign(variableBatchForm, {
-		useMethod: false, method: '',
-		useDataType: false, dataType: 9,
-		useEndianType: false, endianType: 2,
-		useProtectType: false, protectType: 0,
-		useIsUpload: false, isUpload: true,
-		useIsTrigger: false, isTrigger: false,
-		useIndex: false, index: 0,
+		useMethod: false,
+		method: '',
+		useDataType: false,
+		dataType: 9,
+		useEndianType: false,
+		endianType: 2,
+		useProtectType: false,
+		protectType: 0,
+		useIsUpload: false,
+		isUpload: true,
+		useIsTrigger: false,
+		isTrigger: false,
+		useIndex: false,
+		index: 0,
 	});
 	variableBatchVisible.value = true;
 };
@@ -976,9 +1138,7 @@ const importVariables = async (uploadFile) => {
 };
 
 const openBatchWrite = () => {
-	writeRows.value = (detail.value.deviceVariables || [])
-		.filter((x) => Number(x.protectType) !== 0)
-		.map((x) => ({ name: x.name, dataType: Number(x.dataType), value: '' }));
+	writeRows.value = (detail.value.deviceVariables || []).filter((x) => Number(x.protectType) !== 0).map((x) => ({ name: x.name, dataType: Number(x.dataType), value: '' }));
 	if (!writeRows.value.length) {
 		ElMessage.warning('当前设备没有可写变量');
 		return;
@@ -1023,6 +1183,7 @@ const writeVariables = async () => {
 };
 
 onMounted(async () => {
+	await loadOrgs();
 	await loadDrivers();
 	await loadGroups();
 	await loadData();

@@ -18,11 +18,13 @@ public class IotMqttService : IDynamicApiController, ITransient
 {
     private readonly IotMqttServer _mqttServer;
     private readonly SqlSugarRepository<IotSystemConfig> _configRep;
+    private readonly IotOrgScopeService _orgScope;
 
-    public IotMqttService(IotMqttServer mqttServer, SqlSugarRepository<IotSystemConfig> configRep)
+    public IotMqttService(IotMqttServer mqttServer, SqlSugarRepository<IotSystemConfig> configRep, IotOrgScopeService orgScope)
     {
         _mqttServer = mqttServer;
         _configRep = configRep;
+        _orgScope = orgScope;
     }
 
     /// <summary>
@@ -31,6 +33,7 @@ public class IotMqttService : IDynamicApiController, ITransient
     [DisplayName("MQTT运行状态"), HttpGet]
     public async Task<object> Status()
     {
+        _orgScope.EnsureSuperAdmin();
         var config = await _configRep.AsQueryable().FirstAsync();
 
         return new
@@ -53,6 +56,7 @@ public class IotMqttService : IDynamicApiController, ITransient
     [DisplayName("发布MQTT消息"), HttpPost]
     public async Task Publish([FromBody] IotMqttPublishInput input)
     {
+        _orgScope.EnsureSuperAdmin();
         await _mqttServer.PublishAsync(input.Topic, input.Payload, input.Retain);
     }
 }

@@ -11,15 +11,18 @@ public class IotDashboardService : IDynamicApiController, ITransient
 {
     private readonly SqlSugarRepository<IotDevice> _deviceRep;
     private readonly SqlSugarRepository<IotDeviceVariable> _variableRep;
+    private readonly IotOrgScopeService _orgScope;
     private readonly IServiceProvider _serviceProvider;
 
     public IotDashboardService(
         SqlSugarRepository<IotDevice> deviceRep,
         SqlSugarRepository<IotDeviceVariable> variableRep,
+        IotOrgScopeService orgScope,
         IServiceProvider serviceProvider)
     {
         _deviceRep = deviceRep;
         _variableRep = variableRep;
+        _orgScope = orgScope;
         _serviceProvider = serviceProvider;
     }
 
@@ -31,7 +34,7 @@ public class IotDashboardService : IDynamicApiController, ITransient
     [DisplayName("设备状态图表"), HttpGet]
     public async Task<List<IotChartDataDto>> DeviceStatusChart()
     {
-        var devices = await _deviceRep.AsQueryable()
+        var devices = await (await _orgScope.DeviceQueryAsync())
             .Where(u => u.DeviceTypeEnum == IotDeviceTypeEnum.Device)
             .ToListAsync();
         var runningIds = Runtime?.GetRunningDeviceIds() ?? new List<long>();
@@ -54,7 +57,7 @@ public class IotDashboardService : IDynamicApiController, ITransient
     [DisplayName("设备变量图表"), HttpGet]
     public async Task<List<IotVariableChartDto>> VariableStatusChart()
     {
-        var devices = await _deviceRep.AsQueryable()
+        var devices = await (await _orgScope.DeviceQueryAsync())
             .Where(u => u.DeviceTypeEnum == IotDeviceTypeEnum.Device)
             .OrderBy(u => new { u.Index, u.DeviceName })
             .ToListAsync();

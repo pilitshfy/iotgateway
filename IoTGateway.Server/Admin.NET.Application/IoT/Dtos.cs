@@ -67,6 +67,11 @@ public class IotDevicePageInput : BasePageInput
     /// 父级Id
     /// </summary>
     public long? ParentId { get; set; }
+
+    /// <summary>
+    /// 所属组织Id（包含子组织）
+    /// </summary>
+    public long? OrgId { get; set; }
 }
 
 /// <summary>
@@ -107,6 +112,8 @@ public class IotDeviceBatchUpdateInput
     public long? DriverId { get; set; }
 
     public long? ParentId { get; set; }
+
+    public long? OrgId { get; set; }
 
     public bool? AutoStart { get; set; }
 

@@ -30,6 +30,10 @@ public class IotDevice : EntityBase
     [SugarColumn(ColumnDescription = "名称", Length = 128)]
     public string DeviceName { get; set; }
 
+    // SqlSugar CodeFirst 会按 Int32 解析文本默认值，实际根组织默认值由 IotOrgSchemaMigration 修正
+    [SugarColumn(ColumnDescription = "所属组织Id", DefaultValue = "0")]
+    public long OrgId { get; set; }
+
     [SugarColumn(ColumnName = "SortIndex", ColumnDescription = "排序")]
     public int Index { get; set; }
 
@@ -59,6 +63,9 @@ public class IotDevice : EntityBase
 
     [SugarColumn(IsIgnore = true)]
     public string DriverName { get; set; }
+
+    [SugarColumn(IsIgnore = true)]
+    public string OrgName { get; set; }
 
     [SugarColumn(IsIgnore = true)]
     public List<IotDeviceConfig> DeviceConfigs { get; set; }

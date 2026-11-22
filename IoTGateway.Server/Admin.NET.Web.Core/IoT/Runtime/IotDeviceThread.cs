@@ -20,6 +20,7 @@ public class IotDeviceThread : IDisposable
     private readonly IotMqttServer _mqttServer;
     private readonly IotPlatformService _platformService;
     private readonly IIotHistorySink _historySink;
+    private readonly IIotAlarmSink _alarmSink;
     private readonly ILogger _logger;
     public readonly IotDevice Device;
     public readonly IDriver Driver;
@@ -40,13 +41,14 @@ public class IotDeviceThread : IDisposable
     private DateTime _lastPublishTime = DateTime.MinValue;
     private bool? _lastConnected;
 
-    public IotDeviceThread(IotDevice device, IDriver driver, IotMqttServer mqttServer, IotPlatformService platformService, ILogger logger, IIotHistorySink historySink = null)
+    public IotDeviceThread(IotDevice device, IDriver driver, IotMqttServer mqttServer, IotPlatformService platformService, ILogger logger, IIotHistorySink historySink = null, IIotAlarmSink alarmSink = null)
     {
         Device = device;
         Driver = driver;
         _mqttServer = mqttServer;
         _platformService = platformService;
         _historySink = historySink;
+        _alarmSink = alarmSink;
         _logger = logger;
         _interpreter = new Interpreter();
 
@@ -241,6 +243,22 @@ public class IotDeviceThread : IDisposable
             item.StatusType = (IotVariableStatusEnum)(int)ret.StatusType;
             item.Timestamp = ret.Timestamp;
             item.Message = ret.Message;
+
+            // 每次采集都进入实时告警判断，不依赖变化上传或历史归档配置
+            if (_alarmSink is { Enabled: true })
+            {
+                _alarmSink.Enqueue(new IotAlarmSample
+                {
+                    DeviceId = Device.Id,
+                    DeviceName = Device.DeviceName,
+                    OrgId = Device.OrgId,
+                    VariableId = item.Id,
+                    VariableName = item.Name,
+                    Value = item.CookedValue ?? item.Value,
+                    Status = item.StatusType,
+                    Timestamp = item.Timestamp
+                });
+            }
 
             // 变量值变化时推送实时消息，供前端订阅
             var changed = JsonConvert.SerializeObject(item.Values[0]) != JsonConvert.SerializeObject(item.Values[1])

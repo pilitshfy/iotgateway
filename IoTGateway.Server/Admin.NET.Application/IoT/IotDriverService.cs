@@ -13,12 +13,14 @@ public class IotDriverService : IDynamicApiController, ITransient
     private readonly SqlSugarRepository<IotDriver> _driverRep;
     private readonly SqlSugarRepository<IotDevice> _deviceRep;
     private readonly IServiceProvider _serviceProvider;
+    private readonly IotOrgScopeService _orgScope;
 
-    public IotDriverService(SqlSugarRepository<IotDriver> driverRep, SqlSugarRepository<IotDevice> deviceRep, IServiceProvider serviceProvider)
+    public IotDriverService(SqlSugarRepository<IotDriver> driverRep, SqlSugarRepository<IotDevice> deviceRep, IServiceProvider serviceProvider, IotOrgScopeService orgScope)
     {
         _driverRep = driverRep;
         _deviceRep = deviceRep;
         _serviceProvider = serviceProvider;
+        _orgScope = orgScope;
     }
 
     private IIotDriverProvider DriverProvider => _serviceProvider.GetService<IIotDriverProvider>();
@@ -77,6 +79,7 @@ public class IotDriverService : IDynamicApiController, ITransient
     [DisplayName("重新加载驱动"), ApiDescriptionSettings(Name = "Reload"), HttpPost]
     public void Reload()
     {
+        _orgScope.EnsureSuperAdmin();
         DriverProvider?.ReloadDrivers();
     }
 
@@ -86,6 +89,7 @@ public class IotDriverService : IDynamicApiController, ITransient
     [DisplayName("新增驱动"), ApiDescriptionSettings(Name = "Add"), HttpPost]
     public async Task<long> Add([FromBody] IotDriver input)
     {
+        _orgScope.EnsureSuperAdmin();
         input.Id = 0;
         await _driverRep.InsertAsync(input);
         return input.Id;
@@ -97,6 +101,7 @@ public class IotDriverService : IDynamicApiController, ITransient
     [DisplayName("修改驱动"), ApiDescriptionSettings(Name = "Update"), HttpPost]
     public async Task Update([FromBody] IotDriver input)
     {
+        _orgScope.EnsureSuperAdmin();
         var db = await _driverRep.GetByIdAsync(input.Id) ?? throw Oops.Oh("驱动不存在");
         db.DriverName = input.DriverName;
         db.FileName = input.FileName;
@@ -111,6 +116,7 @@ public class IotDriverService : IDynamicApiController, ITransient
     [DisplayName("批量修改驱动"), ApiDescriptionSettings(Name = "BatchUpdate"), HttpPost]
     public async Task BatchUpdate([FromBody] IotDriverBatchUpdateInput input)
     {
+        _orgScope.EnsureSuperAdmin();
         if (input?.Ids == null || input.Ids.Count == 0) return;
 
         var drivers = await _driverRep.AsQueryable().Where(u => input.Ids.Contains(u.Id)).ToListAsync();
@@ -129,6 +135,7 @@ public class IotDriverService : IDynamicApiController, ITransient
     [DisplayName("删除驱动"), ApiDescriptionSettings(Name = "Delete"), HttpPost]
     public async Task Delete([FromBody] IotIdInput input)
     {
+        _orgScope.EnsureSuperAdmin();
         var used = await _deviceRep.AsQueryable().AnyAsync(u => u.DriverId == input.Id);
         if (used) throw Oops.Oh("该驱动已被设备使用，无法删除");
 
@@ -141,6 +148,7 @@ public class IotDriverService : IDynamicApiController, ITransient
     [DisplayName("批量删除驱动"), ApiDescriptionSettings(Name = "BatchDelete"), HttpPost]
     public async Task BatchDelete([FromBody] IotIdsInput input)
     {
+        _orgScope.EnsureSuperAdmin();
         if (input?.Ids == null || input.Ids.Count == 0) return;
 
         var used = await _deviceRep.AsQueryable().AnyAsync(u => u.DriverId != null && input.Ids.Contains(u.DriverId.Value));

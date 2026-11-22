@@ -24,6 +24,7 @@ public class IotDeviceRuntimeService : BackgroundService, IIotDeviceRuntime
     private readonly IotMqttServer _mqttServer;
     private readonly IotPlatformService _platformService;
     private readonly IIotHistorySink _historySink;
+    private readonly IIotAlarmSink _alarmSink;
     private readonly ILogger<IotDeviceRuntimeService> _logger;
 
     private readonly ConcurrentDictionary<long, IotDeviceThread> _threads = new();
@@ -35,6 +36,7 @@ public class IotDeviceRuntimeService : BackgroundService, IIotDeviceRuntime
         IotMqttServer mqttServer,
         IotPlatformService platformService,
         IIotHistorySink historySink,
+        IIotAlarmSink alarmSink,
         ILogger<IotDeviceRuntimeService> logger)
     {
         _db = db;
@@ -42,6 +44,7 @@ public class IotDeviceRuntimeService : BackgroundService, IIotDeviceRuntime
         _mqttServer = mqttServer;
         _platformService = platformService;
         _historySink = historySink;
+        _alarmSink = alarmSink;
         _logger = logger;
     }
 
@@ -365,7 +368,7 @@ public class IotDeviceRuntimeService : BackgroundService, IIotDeviceRuntime
 
         ApplyConfigs(driver, configs);
 
-        var thread = new IotDeviceThread(device, driver, _mqttServer, _platformService, _logger, _historySink);
+        var thread = new IotDeviceThread(device, driver, _mqttServer, _platformService, _logger, _historySink, _alarmSink);
         _threads[deviceId] = thread;
         thread.Start();
 

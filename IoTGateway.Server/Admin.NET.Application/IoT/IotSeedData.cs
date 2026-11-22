@@ -22,7 +22,17 @@ public class IotMenuSeedData : ISqlSugarEntitySeedData<SysMenu>
             new SysMenu{ Id=1311000010301, Pid=1311000000101, Title="传输配置", Path="/iot/config", Name="iotConfig", Component="/iot/config/index", Icon="ele-Setting", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=120 },
             new SysMenu{ Id=1311000010401, Pid=1311000000101, Title="MQTT状态", Path="/iot/mqtt", Name="iotMqtt", Component="/iot/mqtt/index", Icon="ele-Monitor", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=130 },
             new SysMenu{ Id=1311000010501, Pid=1311000000101, Title="RPC日志", Path="/iot/rpc", Name="iotRpc", Component="/iot/rpc/index", Icon="ele-Link", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=140 },
-            new SysMenu{ Id=1311000010601, Pid=1311000000101, Title="历史数据", Path="/iot/history", Name="iotHistory", Component="/iot/history/index", Icon="ele-TrendCharts", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=150 }
+            new SysMenu{ Id=1311000010601, Pid=1311000000101, Title="历史数据", Path="/iot/history", Name="iotHistory", Component="/iot/history/index", Icon="ele-TrendCharts", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=150 },
+
+            new SysMenu{ Id=1311000010701, Pid=1311000000101, Title="告警规则", Path="/iot/alarm/rule", Name="iotAlarmRule", Component="/iot/alarm/rule/index", Icon="ele-BellFilled", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=160 },
+            new SysMenu{ Id=1311000010702, Pid=1311000010701, Title="查询", Permission="iotAlarmRule:page", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010703, Pid=1311000010701, Title="增加", Permission="iotAlarmRule:add", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010704, Pid=1311000010701, Title="编辑", Permission="iotAlarmRule:update", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010705, Pid=1311000010701, Title="删除", Permission="iotAlarmRule:delete", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010801, Pid=1311000000101, Title="告警记录", Path="/iot/alarm/event", Name="iotAlarmEvent", Component="/iot/alarm/event/index", Icon="ele-WarningFilled", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=170 },
+            new SysMenu{ Id=1311000010802, Pid=1311000010801, Title="确认", Permission="iotAlarmEvent:ack", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010803, Pid=1311000010801, Title="闭环", Permission="iotAlarmEvent:close", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010901, Pid=1311000000101, Title="告警大屏", Path="/iot/alarm/dashboard", Name="iotAlarmDashboard", Component="/iot/alarm/dashboard/index", Icon="ele-DataBoard", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=180 }
         };
     }
 }
