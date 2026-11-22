@@ -27,13 +27,19 @@
 				</el-form-item>
 				<el-form-item>
 					<el-button type="primary" @click="loadData">查询</el-button>
+					<el-button type="danger" :disabled="!selectedIds.length" @click="batchRemove">批量删除</el-button>
+					<el-button @click="exportLogs">导出日志</el-button>
 					<el-button type="danger" plain @click="clearAll">清空日志</el-button>
 				</el-form-item>
 			</el-form>
 
-			<el-table v-loading="loading" :data="tableData" border stripe empty-text="暂无 RPC 日志">
+			<el-table v-loading="loading" :data="tableData" border stripe empty-text="暂无 RPC 日志" @selection-change="onSelectionChange">
+				<el-table-column type="selection" width="46" />
 				<el-table-column label="发起方" width="100">
 					<template #default="{ row }">{{ Number(row.rpcSide) === 2 ? '客户端' : '服务端' }}</template>
+				</el-table-column>
+				<el-table-column label="设备" min-width="130">
+					<template #default="{ row }">{{ deviceName(row.deviceId) }}</template>
 				</el-table-column>
 				<el-table-column prop="method" label="方法" min-width="160" />
 				<el-table-column prop="startTime" label="开始时间" width="180" />
@@ -45,8 +51,9 @@
 				</el-table-column>
 				<el-table-column prop="params" label="请求参数" min-width="200" show-overflow-tooltip />
 				<el-table-column prop="description" label="描述" min-width="160" show-overflow-tooltip />
-				<el-table-column label="操作" width="90" fixed="right">
+				<el-table-column label="操作" width="130" fixed="right">
 					<template #default="{ row }">
+						<el-button link type="primary" @click="openDetail(row)">详情</el-button>
 						<el-button link type="danger" @click="remove(row)">删除</el-button>
 					</template>
 				</el-table-column>
@@ -63,6 +70,24 @@
 				@size-change="loadData"
 			/>
 		</el-card>
+
+		<el-dialog v-model="detailVisible" title="RPC 日志详情" width="640px" destroy-on-close>
+			<el-descriptions v-if="detail" :column="2" border>
+				<el-descriptions-item label="发起方">{{ Number(detail.rpcSide) === 2 ? '客户端' : '服务端' }}</el-descriptions-item>
+				<el-descriptions-item label="设备">{{ deviceName(detail.deviceId) }}</el-descriptions-item>
+				<el-descriptions-item label="方法">{{ detail.method }}</el-descriptions-item>
+				<el-descriptions-item label="结果">
+					<el-tag :type="detail.isSuccess ? 'success' : 'danger'">{{ detail.isSuccess ? '成功' : '失败' }}</el-tag>
+				</el-descriptions-item>
+				<el-descriptions-item label="开始时间">{{ detail.startTime }}</el-descriptions-item>
+				<el-descriptions-item label="结束时间">{{ detail.endTime }}</el-descriptions-item>
+				<el-descriptions-item label="请求参数" :span="2"><pre class="detail-pre">{{ detail.params }}</pre></el-descriptions-item>
+				<el-descriptions-item label="描述" :span="2">{{ detail.description }}</el-descriptions-item>
+			</el-descriptions>
+			<template #footer>
+				<el-button @click="detailVisible = false">关闭</el-button>
+			</template>
+		</el-dialog>
 	</div>
 </template>
 
@@ -78,6 +103,42 @@ const devices = ref([]);
 const invoking = ref(false);
 const invokeForm = reactive({ deviceName: '', method: 'write', params: '{"temperature":25}' });
 const query = reactive({ keyword: '', page: 1, pageSize: 20 });
+const selectedIds = ref([]);
+const detailVisible = ref(false);
+const detail = ref(null);
+
+const deviceName = (deviceId) => {
+	if (!deviceId) return '-';
+	return devices.value.find((x) => Number(x.id) === Number(deviceId))?.deviceName || deviceId;
+};
+
+const onSelectionChange = (rows) => {
+	selectedIds.value = rows.map((x) => x.id);
+};
+
+const batchRemove = async () => {
+	await ElMessageBox.confirm(`确认删除选中的 ${selectedIds.value.length} 条 RPC 日志吗？`, '提示', { type: 'warning' });
+	await iotRpcLogApi.batchDelete(selectedIds.value);
+	ElMessage.success('删除成功');
+	await loadData();
+};
+
+const openDetail = async (row) => {
+	const res = await iotRpcLogApi.detail(row.id);
+	detail.value = res.data.result || row;
+	detailVisible.value = true;
+};
+
+const exportLogs = async () => {
+	const res = await iotRpcLogApi.export({ keyword: query.keyword });
+	const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement('a');
+	link.href = url;
+	link.download = `rpc_logs_${Date.now()}.xlsx`;
+	link.click();
+	URL.revokeObjectURL(url);
+};
 
 const loadDevices = async () => {
 	const res = await iotDeviceApi.page({ page: 1, pageSize: 200 });
@@ -157,5 +218,11 @@ onMounted(() => {
 .iot-pager {
 	margin-top: 16px;
 	justify-content: flex-end;
+}
+.detail-pre {
+	margin: 0;
+	white-space: pre-wrap;
+	word-break: break-all;
+	font-family: monospace;
 }
 </style>

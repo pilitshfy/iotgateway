@@ -11,6 +11,7 @@ public class IotMenuSeedData : ISqlSugarEntitySeedData<SysMenu>
         {
             new SysMenu{ Id=1311000000101, Pid=0, Title="IoT网关", Path="/iot", Name="iot", Component="Layout", Icon="ele-Cpu", Type=MenuTypeEnum.Dir, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=500 },
 
+            new SysMenu{ Id=1311000010001, Pid=1311000000101, Title="首页概览", Path="/iot/dashboard", Name="iotDashboard", Component="/iot/dashboard/index", Icon="ele-DataAnalysis", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=90 },
             new SysMenu{ Id=1311000010101, Pid=1311000000101, Title="设备管理", Path="/iot/device", Name="iotDevice", Component="/iot/device/index", Icon="ele-Connection", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=100 },
             new SysMenu{ Id=1311000010102, Pid=1311000010101, Title="查询", Permission="iotDevice:page", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=100 },
             new SysMenu{ Id=1311000010103, Pid=1311000010101, Title="增加", Permission="iotDevice:add", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=100 },

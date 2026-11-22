@@ -1,4 +1,7 @@
 using System.ComponentModel;
+using System.Data;
+using Microsoft.AspNetCore.Mvc;
+using MiniExcelLibs;
 using SqlSugar;
 
 namespace Admin.NET.Application;
@@ -27,6 +30,47 @@ public class IotRpcLogService : IDynamicApiController, ITransient
             .WhereIF(!string.IsNullOrWhiteSpace(input.Keyword), u => u.Method.Contains(input.Keyword))
             .OrderBy(u => u.StartTime, OrderByType.Desc)
             .ToPagedListAsync(input.Page, input.PageSize);
+    }
+
+    /// <summary>
+    /// RPC 日志详情
+    /// </summary>
+    [DisplayName("RPC日志详情"), HttpGet]
+    public async Task<IotRpcLog> Detail([FromQuery] long id)
+    {
+        return await _rpcLogRep.GetByIdAsync(id);
+    }
+
+    /// <summary>
+    /// 导出 RPC 日志 Excel
+    /// </summary>
+    [DisplayName("导出RPC日志"), ApiDescriptionSettings(Name = "Export"), HttpGet]
+    public async Task<IActionResult> Export([FromQuery] long? deviceId, [FromQuery] string keyword)
+    {
+        var logs = await _rpcLogRep.AsQueryable()
+            .WhereIF(deviceId.HasValue, u => u.DeviceId == deviceId)
+            .WhereIF(!string.IsNullOrWhiteSpace(keyword), u => u.Method.Contains(keyword))
+            .OrderBy(u => u.StartTime, OrderByType.Desc)
+            .ToListAsync();
+        var devices = await _rpcLogRep.Context.Queryable<IotDevice>().ToListAsync();
+        var deviceNames = devices.ToDictionary(u => u.Id, u => u.DeviceName);
+
+        var table = new DataTable("RPC日志");
+        foreach (var column in new[] { "发起方", "设备名", "方法", "请求参数", "开始时间", "结束时间", "结果", "描述" })
+            table.Columns.Add(column);
+        foreach (var log in logs)
+        {
+            table.Rows.Add(log.RpcSide == IotRpcSideEnum.ClientSide ? "客户端" : "服务端",
+                log.DeviceId.HasValue ? deviceNames.GetValueOrDefault(log.DeviceId.Value) : null,
+                log.Method, log.Params, log.StartTime, log.EndTime, log.IsSuccess ? "成功" : "失败", log.Description);
+        }
+
+        await using var stream = new MemoryStream();
+        await stream.SaveAsAsync(table, printHeader: true);
+        return new FileContentResult(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        {
+            FileDownloadName = $"iotgateway_rpclog_{DateTime.Now:yyyyMMddHHmmss}.xlsx"
+        };
     }
 
     /// <summary>

@@ -153,6 +153,31 @@ public class IotDeviceService : IDynamicApiController, ITransient
     }
 
     /// <summary>
+    /// 批量修改设备
+    /// </summary>
+    [DisplayName("批量修改设备"), ApiDescriptionSettings(Name = "BatchUpdate"), HttpPost]
+    public async Task BatchUpdate([FromBody] IotDeviceBatchUpdateInput input)
+    {
+        if (input?.Ids == null || input.Ids.Count == 0) return;
+
+        var devices = await _deviceRep.AsQueryable().Where(u => input.Ids.Contains(u.Id)).ToListAsync();
+        foreach (var db in devices)
+        {
+            if (input.DriverId.HasValue) db.DriverId = input.DriverId;
+            if (input.ParentId.HasValue) db.ParentId = input.ParentId;
+            if (input.AutoStart.HasValue) db.AutoStart = input.AutoStart.Value;
+            if (input.CgUpload.HasValue) db.CgUpload = input.CgUpload.Value;
+            if (input.EnforcePeriod.HasValue) db.EnforcePeriod = input.EnforcePeriod.Value;
+            if (input.CmdPeriod.HasValue) db.CmdPeriod = input.CmdPeriod.Value;
+            await _deviceRep.AsUpdateable(db).ExecuteCommandAsync();
+        }
+
+        if (Runtime != null)
+            foreach (var device in devices.Where(u => u.DeviceTypeEnum == IotDeviceTypeEnum.Device))
+                await Runtime.RestartDeviceAsync(device.Id);
+    }
+
+    /// <summary>
     /// 复制设备及其通讯配置、变量
     /// </summary>
     [DisplayName("复制设备"), ApiDescriptionSettings(Name = "Copy"), HttpPost]

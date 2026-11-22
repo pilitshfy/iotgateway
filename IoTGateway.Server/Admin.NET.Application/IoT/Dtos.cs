@@ -98,6 +98,122 @@ public class IotDeviceVariablePageInput : BasePageInput
 }
 
 /// <summary>
+/// 设备批量修改输入（仅更新有值字段）
+/// </summary>
+public class IotDeviceBatchUpdateInput
+{
+    public List<long> Ids { get; set; } = new();
+
+    public long? DriverId { get; set; }
+
+    public long? ParentId { get; set; }
+
+    public bool? AutoStart { get; set; }
+
+    public bool? CgUpload { get; set; }
+
+    public int? EnforcePeriod { get; set; }
+
+    public int? CmdPeriod { get; set; }
+}
+
+/// <summary>
+/// 变量批量修改输入（仅更新有值字段）
+/// </summary>
+public class IotDeviceVariableBatchUpdateInput
+{
+    public List<long> Ids { get; set; } = new();
+
+    public string Method { get; set; }
+
+    public IotDataTypeEnum? DataType { get; set; }
+
+    public IotEndianEnum? EndianType { get; set; }
+
+    public bool? IsTrigger { get; set; }
+
+    public bool? IsUpload { get; set; }
+
+    public IotProtectTypeEnum? ProtectType { get; set; }
+
+    public string Alias { get; set; }
+
+    public string Expressions { get; set; }
+
+    public int? Index { get; set; }
+}
+
+/// <summary>
+/// 通讯配置批量修改输入（仅更新有值字段）
+/// </summary>
+public class IotDeviceConfigBatchUpdateInput
+{
+    public List<long> Ids { get; set; } = new();
+
+    public IotDataSideEnum? DataSide { get; set; }
+
+    public string Value { get; set; }
+
+    public string Description { get; set; }
+}
+
+/// <summary>
+/// 驱动批量修改输入（仅更新有值字段）
+/// </summary>
+public class IotDriverBatchUpdateInput
+{
+    public List<long> Ids { get; set; } = new();
+
+    public string FileName { get; set; }
+
+    public string AssembleName { get; set; }
+
+    public int? AuthorizesNum { get; set; }
+}
+
+/// <summary>
+/// 图表数据项
+/// </summary>
+public class IotChartDataDto
+{
+    /// <summary>
+    /// 分类
+    /// </summary>
+    public string Category { get; set; }
+
+    /// <summary>
+    /// 系列
+    /// </summary>
+    public string Series { get; set; }
+
+    /// <summary>
+    /// 数值
+    /// </summary>
+    public int Value { get; set; }
+}
+
+/// <summary>
+/// 设备变量状态图表
+/// </summary>
+public class IotVariableChartDto
+{
+    /// <summary>
+    /// 设备名称
+    /// </summary>
+    public string DeviceName { get; set; }
+
+    /// <summary>
+    /// 正常变量数
+    /// </summary>
+    public int GoodCount { get; set; }
+
+    /// <summary>
+    /// 异常变量数
+    /// </summary>
+    public int BadCount { get; set; }
+}
+
+/// <summary>
 /// RPC 日志分页查询
 /// </summary>
 public class IotRpcLogPageInput : BasePageInput

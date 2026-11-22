@@ -205,6 +205,108 @@ public class IotDeviceRuntimeService : BackgroundService, IIotDeviceRuntime
         return result;
     }
 
+    /// <summary>
+    /// 采集线程中的设备名称
+    /// </summary>
+    public List<string> GetDeviceNames()
+    {
+        return _threads.Values.Select(x => x.Device.DeviceName).ToList();
+    }
+
+    /// <summary>
+    /// 设备连接状态（未加载返回 null）
+    /// </summary>
+    public bool? GetDeviceStatus(string deviceName)
+    {
+        return FindThread(deviceName)?.Driver.IsConnected;
+    }
+
+    /// <summary>
+    /// 连接设备
+    /// </summary>
+    public bool ConnectDevice(string deviceName)
+    {
+        return FindThread(deviceName)?.Driver.Connect() ?? false;
+    }
+
+    /// <summary>
+    /// 断开设备
+    /// </summary>
+    public bool DisconnectDevice(string deviceName)
+    {
+        return FindThread(deviceName)?.Driver.Close() ?? false;
+    }
+
+    /// <summary>
+    /// 按设备名称重启采集线程
+    /// </summary>
+    public async Task<bool> RestartDeviceByNameAsync(string deviceName)
+    {
+        var pair = _threads.FirstOrDefault(x => x.Value.Device.DeviceName == deviceName);
+        if (pair.Value == null) return false;
+
+        await RestartDeviceAsync(pair.Key);
+        return true;
+    }
+
+    /// <summary>
+    /// 设备详细信息
+    /// </summary>
+    public Dictionary<string, object> GetDeviceInfo(string deviceName)
+    {
+        var thread = FindThread(deviceName);
+        if (thread == null)
+            return new Dictionary<string, object> { { "error", "Device not found" } };
+
+        var device = thread.Device;
+        var info = new Dictionary<string, object>
+        {
+            { "DeviceName", device.DeviceName },
+            { "Description", device.Description ?? string.Empty },
+            { "AutoStart", device.AutoStart },
+            { "ChangeUpload", device.CgUpload },
+            { "EnforcePeriod", device.EnforcePeriod },
+            { "CmdPeriod", device.CmdPeriod },
+            { "DeviceType", device.DeviceTypeEnum.ToString() },
+            { "IsConnected", thread.Driver.IsConnected },
+            { "Timeout", thread.Driver.Timeout },
+            { "MinPeriod", thread.Driver.MinPeriod },
+            { "VariableCount", device.DeviceVariables?.Count ?? 0 },
+            { "ConfigCount", device.DeviceConfigs?.Count ?? 0 }
+        };
+
+        if (device.DeviceConfigs != null)
+            info["Configs"] = device.DeviceConfigs.ToDictionary(x => x.DeviceConfigName, x => x.Value);
+
+        return info;
+    }
+
+    /// <summary>
+    /// 按设备名称获取实时变量
+    /// </summary>
+    public List<IotDeviceVariable> GetDeviceVariablesByName(string deviceName)
+    {
+        return FindThread(deviceName)?.Device.DeviceVariables ?? new List<IotDeviceVariable>();
+    }
+
+    /// <summary>
+    /// 获取设备驱动名称
+    /// </summary>
+    public async Task<string> GetDeviceDriverNameAsync(string deviceName)
+    {
+        var thread = FindThread(deviceName);
+        if (thread?.Device.DriverId == null) return string.Empty;
+
+        var driver = await _db.Queryable<IotDriver>().InSingleAsync(thread.Device.DriverId.Value);
+        return driver?.DriverName ?? string.Empty;
+    }
+
+    private IotDeviceThread FindThread(string deviceName)
+    {
+        if (string.IsNullOrWhiteSpace(deviceName)) return null;
+        return _threads.Values.FirstOrDefault(x => x.Device.DeviceName == deviceName);
+    }
+
     private static object NormalizeRpcValue(object value)
     {
         if (value is not System.Text.Json.JsonElement element) return value;

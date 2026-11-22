@@ -11,6 +11,7 @@ export const iotDeviceApi = {
 	update: (data: any) => request({ url: '/api/iotDevice/update', method: 'post', data }),
 	delete: (id: number) => request({ url: '/api/iotDevice/delete', method: 'post', data: { id } }),
 	batchDelete: (ids: number[]) => request({ url: '/api/iotDevice/batchDelete', method: 'post', data: { ids } }),
+	batchUpdate: (data: any) => request({ url: '/api/iotDevice/batchUpdate', method: 'post', data }),
 	copy: (data: { id: number; count: number }) => request({ url: '/api/iotDevice/copy', method: 'post', data }),
 	requestAttributes: (id: number) => request({ url: '/api/iotDevice/requestAttributes', method: 'post', data: { id } }),
 	export: () => request({ url: '/api/iotDevice/export', method: 'get', responseType: 'blob' }),
@@ -33,6 +34,7 @@ export const iotDriverApi = {
 	update: (data: any) => request({ url: '/api/iotDriver/update', method: 'post', data }),
 	delete: (id: number) => request({ url: '/api/iotDriver/delete', method: 'post', data: { id } }),
 	batchDelete: (ids: number[]) => request({ url: '/api/iotDriver/batchDelete', method: 'post', data: { ids } }),
+	batchUpdate: (data: any) => request({ url: '/api/iotDriver/batchUpdate', method: 'post', data }),
 	driverFiles: () => request({ url: '/api/iotDriver/driverFiles', method: 'get' }),
 	driverConfigs: (assembleName: string) => request({ url: '/api/iotDriver/driverConfigs', method: 'get', params: { assembleName } }),
 	driverMethods: (assembleName: string) => request({ url: '/api/iotDriver/driverMethods', method: 'get', params: { assembleName } }),
@@ -48,6 +50,8 @@ export const iotDeviceConfigApi = {
 	add: (data: any) => request({ url: '/api/iotDeviceConfig/add', method: 'post', data }),
 	update: (data: any) => request({ url: '/api/iotDeviceConfig/update', method: 'post', data }),
 	delete: (id: number) => request({ url: '/api/iotDeviceConfig/delete', method: 'post', data: { id } }),
+	batchUpdate: (data: any) => request({ url: '/api/iotDeviceConfig/batchUpdate', method: 'post', data }),
+	export: (deviceId?: number) => request({ url: '/api/iotDeviceConfig/export', method: 'get', params: { deviceId }, responseType: 'blob' }),
 };
 
 /**
@@ -60,6 +64,14 @@ export const iotDeviceVariableApi = {
 	update: (data: any) => request({ url: '/api/iotDeviceVariable/update', method: 'post', data }),
 	write: (data: { deviceId: number; values: Record<string, any> }) => request({ url: '/api/iotDeviceVariable/write', method: 'post', data }),
 	delete: (id: number) => request({ url: '/api/iotDeviceVariable/delete', method: 'post', data: { id } }),
+	batchUpdate: (data: any) => request({ url: '/api/iotDeviceVariable/batchUpdate', method: 'post', data }),
+	export: (deviceId?: number) => request({ url: '/api/iotDeviceVariable/export', method: 'get', params: { deviceId }, responseType: 'blob' }),
+	import: (file: File, deviceId?: number) => {
+		const data = new FormData();
+		data.append('file', file);
+		if (deviceId) data.append('deviceId', String(deviceId));
+		return request({ url: '/api/iotDeviceVariable/import', method: 'post', data });
+	},
 };
 
 /**
@@ -78,6 +90,16 @@ export const iotRpcLogApi = {
 	delete: (id: number) => request({ url: '/api/iotRpcLog/delete', method: 'post', data: { id } }),
 	batchDelete: (ids: number[]) => request({ url: '/api/iotRpcLog/batchDelete', method: 'post', data: { ids } }),
 	clear: () => request({ url: '/api/iotRpcLog/clear', method: 'post' }),
+	detail: (id: number) => request({ url: '/api/iotRpcLog/detail', method: 'get', params: { id } }),
+	export: (params?: any) => request({ url: '/api/iotRpcLog/export', method: 'get', params, responseType: 'blob' }),
+};
+
+/**
+ * IoT 首页图表
+ */
+export const iotDashboardApi = {
+	deviceStatus: () => request({ url: '/api/iotDashboard/deviceStatusChart', method: 'get' }),
+	variableStatus: () => request({ url: '/api/iotDashboard/variableStatusChart', method: 'get' }),
 };
 
 /**

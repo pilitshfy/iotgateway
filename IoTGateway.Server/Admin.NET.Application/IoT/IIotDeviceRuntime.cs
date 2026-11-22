@@ -34,6 +34,46 @@ public interface IIotDeviceRuntime
     /// 执行 RPC（写入设备变量）
     /// </summary>
     Task<IotRpcResultDto> ExecuteRpcAsync(IotRpcRequestDto request);
+
+    /// <summary>
+    /// 采集线程中的设备名称
+    /// </summary>
+    List<string> GetDeviceNames();
+
+    /// <summary>
+    /// 设备连接状态（未加载返回 null）
+    /// </summary>
+    bool? GetDeviceStatus(string deviceName);
+
+    /// <summary>
+    /// 连接设备
+    /// </summary>
+    bool ConnectDevice(string deviceName);
+
+    /// <summary>
+    /// 断开设备
+    /// </summary>
+    bool DisconnectDevice(string deviceName);
+
+    /// <summary>
+    /// 按设备名称重启采集线程
+    /// </summary>
+    Task<bool> RestartDeviceByNameAsync(string deviceName);
+
+    /// <summary>
+    /// 设备详细信息
+    /// </summary>
+    Dictionary<string, object> GetDeviceInfo(string deviceName);
+
+    /// <summary>
+    /// 按设备名称获取实时变量
+    /// </summary>
+    List<IotDeviceVariable> GetDeviceVariablesByName(string deviceName);
+
+    /// <summary>
+    /// 获取设备驱动名称
+    /// </summary>
+    Task<string> GetDeviceDriverNameAsync(string deviceName);
 }
 
 /// <summary>

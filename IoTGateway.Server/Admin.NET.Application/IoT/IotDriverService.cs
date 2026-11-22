@@ -106,6 +106,24 @@ public class IotDriverService : IDynamicApiController, ITransient
     }
 
     /// <summary>
+    /// 批量修改驱动
+    /// </summary>
+    [DisplayName("批量修改驱动"), ApiDescriptionSettings(Name = "BatchUpdate"), HttpPost]
+    public async Task BatchUpdate([FromBody] IotDriverBatchUpdateInput input)
+    {
+        if (input?.Ids == null || input.Ids.Count == 0) return;
+
+        var drivers = await _driverRep.AsQueryable().Where(u => input.Ids.Contains(u.Id)).ToListAsync();
+        foreach (var db in drivers)
+        {
+            if (!string.IsNullOrWhiteSpace(input.FileName)) db.FileName = input.FileName;
+            if (!string.IsNullOrWhiteSpace(input.AssembleName)) db.AssembleName = input.AssembleName;
+            if (input.AuthorizesNum.HasValue) db.AuthorizesNum = input.AuthorizesNum.Value;
+            await _driverRep.AsUpdateable(db).ExecuteCommandAsync();
+        }
+    }
+
+    /// <summary>
     /// 删除驱动
     /// </summary>
     [DisplayName("删除驱动"), ApiDescriptionSettings(Name = "Delete"), HttpPost]

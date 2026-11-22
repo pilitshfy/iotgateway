@@ -1,5 +1,10 @@
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.Data;
+using System.Reflection;
 using Furion.FriendlyException;
+using Microsoft.AspNetCore.Mvc;
+using MiniExcelLibs;
 using SqlSugar;
 
 namespace Admin.NET.Application;
@@ -44,6 +49,59 @@ public class IotDeviceConfigService : IDynamicApiController, ITransient
             .Where(u => u.DeviceId == deviceId)
             .OrderBy(u => u.Id)
             .ToListAsync();
+    }
+
+    /// <summary>
+    /// 批量修改通讯配置
+    /// </summary>
+    [DisplayName("批量修改通讯配置"), ApiDescriptionSettings(Name = "BatchUpdate"), HttpPost]
+    public async Task BatchUpdate([FromBody] IotDeviceConfigBatchUpdateInput input)
+    {
+        if (input?.Ids == null || input.Ids.Count == 0) return;
+
+        var configs = await _configRep.AsQueryable().Where(u => input.Ids.Contains(u.Id)).ToListAsync();
+        foreach (var db in configs)
+        {
+            if (input.DataSide.HasValue) db.DataSide = input.DataSide.Value;
+            if (input.Value != null) db.Value = input.Value;
+            if (input.Description != null) db.Description = input.Description;
+            await _configRep.AsUpdateable(db).ExecuteCommandAsync();
+        }
+
+        if (Runtime != null)
+            foreach (var deviceId in configs.Select(u => u.DeviceId).Distinct())
+                await Runtime.RestartDeviceAsync(deviceId);
+    }
+
+    /// <summary>
+    /// 导出通讯配置 Excel
+    /// </summary>
+    [DisplayName("导出通讯配置"), ApiDescriptionSettings(Name = "Export"), HttpGet]
+    public async Task<IActionResult> Export([FromQuery] long? deviceId)
+    {
+        var devices = await _configRep.Context.Queryable<IotDevice>().ToListAsync();
+        var configs = await _configRep.AsQueryable()
+            .WhereIF(deviceId.HasValue, u => u.DeviceId == deviceId)
+            .OrderBy(u => new { u.DeviceId, u.DeviceConfigName })
+            .ToListAsync();
+
+        var table = new DataTable("通讯配置");
+        foreach (var column in new[] { "设备名", "名称", "属性侧", "描述", "值", "备注" })
+            table.Columns.Add(column);
+
+        var deviceNames = devices.ToDictionary(u => u.Id, u => u.DeviceName);
+        foreach (var config in configs)
+        {
+            table.Rows.Add(deviceNames.GetValueOrDefault(config.DeviceId), config.DeviceConfigName,
+                config.DataSide == IotDataSideEnum.AnySide ? "共享属性" : "客户端", config.Description, config.Value, config.EnumInfo);
+        }
+
+        await using var stream = new MemoryStream();
+        await stream.SaveAsAsync(table, printHeader: true);
+        return new FileContentResult(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        {
+            FileDownloadName = $"iotgateway_configs_{DateTime.Now:yyyyMMddHHmmss}.xlsx"
+        };
     }
 
     /// <summary>
