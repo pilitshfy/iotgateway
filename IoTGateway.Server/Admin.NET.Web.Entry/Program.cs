@@ -1,0 +1,44 @@
+// Admin.NET 项目的版权、商标、专利和其他相关权利均受相应法律法规的保护。使用本项目应遵守相关法律法规和许可证的要求。
+//
+// 本项目主要遵循 MIT 许可证和 Apache 许可证（版本 2.0）进行分发和使用。许可证位于源代码树根目录中的 LICENSE-MIT 和 LICENSE-APACHE 文件。
+//
+// 不得利用本项目从事危害国家安全、扰乱社会秩序、侵犯他人合法权益等法律法规禁止的活动！任何基于本项目二次开发而产生的一切法律纠纷和责任，我们不承担任何责任！
+using Microsoft.Extensions.Hosting.WindowsServices;
+using MQTTnet.AspNetCore;
+
+Serve.Run(
+    RunOptions.Default //创建一个 WebApplication 主机的配置对象
+    .ConfigureBuilder(builder => builder.Host.UseWindowsService())
+    .AddWebComponent<WebComponent>());//注册 Furion 组件，相当于原来的 AddWebComponent<WebComponent>()
+
+public class WebComponent : IWebComponent
+{
+    public void Load(WebApplicationBuilder builder, ComponentContext componentContext)
+    {
+        // 设置日志过滤
+        builder.Logging.AddFilter((provider, category, logLevel) =>
+        {
+            return !new[] { "Microsoft.Hosting", "Microsoft.AspNetCore" }.Any(u => category.StartsWith(u)) && logLevel >= LogLevel.Information;
+        });
+
+        // 设置接口超时时间和上传大小-Kestrel
+        builder.WebHost.ConfigureKestrel(u =>
+        {
+            u.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(30);
+            u.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(30);
+            u.Limits.MaxRequestBodySize = null;
+
+            // 保留 ASPNETCORE_URLS 指定的 HTTP 端口
+            var urls = builder.Configuration["urls"] ?? "http://0.0.0.0:5005";
+            foreach (var url in urls.Split(';', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (!Uri.TryCreate(url.Replace("*", "0.0.0.0"), UriKind.Absolute, out var uri)) continue;
+                if (uri.Port == 1888) continue;
+                u.ListenAnyIP(uri.Port);
+            }
+
+            // MQTT Broker 端口（TCP 直连 + WebSocket 均复用该端口）
+            u.ListenAnyIP(1888, listen => listen.UseMqtt());
+        });
+    }
+}

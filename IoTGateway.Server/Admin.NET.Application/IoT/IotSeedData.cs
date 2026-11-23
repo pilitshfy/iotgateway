@@ -1,0 +1,84 @@
+namespace Admin.NET.Application;
+
+/// <summary>
+/// IoT 业务菜单种子数据
+/// </summary>
+public class IotMenuSeedData : ISqlSugarEntitySeedData<SysMenu>
+{
+    public IEnumerable<SysMenu> HasData()
+    {
+        return new[]
+        {
+            new SysMenu{ Id=1311000000101, Pid=0, Title="IoT网关", Path="/iot", Name="iot", Component="Layout", Icon="ele-Cpu", Type=MenuTypeEnum.Dir, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=500 },
+
+            new SysMenu{ Id=1311000010001, Pid=1311000000101, Title="首页概览", Path="/iot/dashboard", Name="iotDashboard", Component="/iot/dashboard/index", Icon="ele-DataAnalysis", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=90 },
+            new SysMenu{ Id=1311000010101, Pid=1311000000101, Title="设备管理", Path="/iot/device", Name="iotDevice", Component="/iot/device/index", Icon="ele-Connection", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010102, Pid=1311000010101, Title="查询", Permission="iotDevice:page", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010103, Pid=1311000010101, Title="增加", Permission="iotDevice:add", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010104, Pid=1311000010101, Title="编辑", Permission="iotDevice:update", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010105, Pid=1311000010101, Title="删除", Permission="iotDevice:delete", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=100 },
+
+            new SysMenu{ Id=1311000011001, Pid=1311000000101, Title="边缘节点", Path="/iot/edge", Name="iotEdge", Component="/iot/edge/index", Icon="ele-Share", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-23 00:00:00"), OrderNo=105 },
+            new SysMenu{ Id=1311000011002, Pid=1311000011001, Title="查询", Permission="iotEdge:page", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-23 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000011003, Pid=1311000011001, Title="增加", Permission="iotEdge:add", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-23 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000011004, Pid=1311000011001, Title="编辑", Permission="iotEdge:update", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-23 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000011005, Pid=1311000011001, Title="删除", Permission="iotEdge:delete", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-23 00:00:00"), OrderNo=100 },
+
+            new SysMenu{ Id=1311000010201, Pid=1311000000101, Title="驱动管理", Path="/iot/driver", Name="iotDriver", Component="/iot/driver/index", Icon="ele-Box", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=110 },
+            new SysMenu{ Id=1311000010301, Pid=1311000000101, Title="传输配置", Path="/iot/config", Name="iotConfig", Component="/iot/config/index", Icon="ele-Setting", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=120 },
+            new SysMenu{ Id=1311000010401, Pid=1311000000101, Title="MQTT状态", Path="/iot/mqtt", Name="iotMqtt", Component="/iot/mqtt/index", Icon="ele-Monitor", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=130 },
+            new SysMenu{ Id=1311000010501, Pid=1311000000101, Title="RPC日志", Path="/iot/rpc", Name="iotRpc", Component="/iot/rpc/index", Icon="ele-Link", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=140 },
+            new SysMenu{ Id=1311000010601, Pid=1311000000101, Title="历史数据", Path="/iot/history", Name="iotHistory", Component="/iot/history/index", Icon="ele-TrendCharts", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=150 },
+
+            new SysMenu{ Id=1311000010701, Pid=1311000000101, Title="告警规则", Path="/iot/alarm/rule", Name="iotAlarmRule", Component="/iot/alarm/rule/index", Icon="ele-BellFilled", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=160 },
+            new SysMenu{ Id=1311000010702, Pid=1311000010701, Title="查询", Permission="iotAlarmRule:page", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010703, Pid=1311000010701, Title="增加", Permission="iotAlarmRule:add", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010704, Pid=1311000010701, Title="编辑", Permission="iotAlarmRule:update", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010705, Pid=1311000010701, Title="删除", Permission="iotAlarmRule:delete", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010801, Pid=1311000000101, Title="告警记录", Path="/iot/alarm/event", Name="iotAlarmEvent", Component="/iot/alarm/event/index", Icon="ele-WarningFilled", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=170 },
+            new SysMenu{ Id=1311000010802, Pid=1311000010801, Title="确认", Permission="iotAlarmEvent:ack", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010803, Pid=1311000010801, Title="闭环", Permission="iotAlarmEvent:close", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000010901, Pid=1311000000101, Title="告警大屏", Path="/iot/alarm/dashboard", Name="iotAlarmDashboard", Component="/iot/alarm/dashboard/index", Icon="ele-DataBoard", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-22 00:00:00"), OrderNo=180 }
+        };
+    }
+}
+
+/// <summary>
+/// IoT 菜单租户绑定种子数据（超管登录菜单范围取自 SysTenantMenu）
+/// </summary>
+public class IotTenantMenuSeedData : ISqlSugarEntitySeedData<SysTenantMenu>
+{
+    public IEnumerable<SysTenantMenu> HasData()
+    {
+        return new IotMenuSeedData().HasData().Select(u => new SysTenantMenu
+        {
+            Id = CommonUtil.GetFixedHashCode("" + SqlSugarConst.DefaultTenantId + u.Id, 1300000000000),
+            TenantId = SqlSugarConst.DefaultTenantId,
+            MenuId = u.Id
+        });
+    }
+}
+
+/// <summary>
+/// IoT 传输配置种子数据
+/// </summary>
+[IgnoreUpdateSeed]
+public class IotSystemConfigSeedData : ISqlSugarEntitySeedData<IotSystemConfig>
+{
+    public IEnumerable<IotSystemConfig> HasData()
+    {
+        return new[]
+        {
+            new IotSystemConfig
+            {
+                Id = 1311000000201,
+                GatewayName = "IoTGateway",
+                ClientId = "iotgateway",
+                MqttIp = "127.0.0.1",
+                MqttPort = 1888,
+                IoTPlatformType = IotPlatformTypeEnum.IoTGateway,
+                CreateTime = DateTime.Parse("2026-11-21 00:00:00")
+            }
+        };
+    }
+}

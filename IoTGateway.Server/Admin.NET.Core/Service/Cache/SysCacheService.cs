@@ -1,0 +1,439 @@
+// Admin.NET 项目的版权、商标、专利和其他相关权利均受相应法律法规的保护。使用本项目应遵守相关法律法规和许可证的要求。
+//
+// 本项目主要遵循 MIT 许可证和 Apache 许可证（版本 2.0）进行分发和使用。许可证位于源代码树根目录中的 LICENSE-MIT 和 LICENSE-APACHE 文件。
+//
+// 不得利用本项目从事危害国家安全、扰乱社会秩序、侵犯他人合法权益等法律法规禁止的活动！任何基于本项目二次开发而产生的一切法律纠纷和责任，我们不承担任何责任！
+
+using Newtonsoft.Json;
+
+namespace Admin.NET.Core.Service;
+
+/// <summary>
+/// 系统缓存服务 🧩
+/// </summary>
+[ApiDescriptionSettings(Order = 400, Description = "系统缓存")]
+[SysAdminOnly]
+public class SysCacheService : IDynamicApiController, ISingleton
+{
+    private readonly ICacheProvider _cacheProvider;
+    private readonly CacheOptions _cacheOptions;
+
+    public SysCacheService(ICacheProvider cacheProvider,
+        IOptions<CacheOptions> cacheOptions)
+    {
+        _cacheProvider = cacheProvider;
+        _cacheOptions = cacheOptions.Value;
+    }
+
+    /// <summary>
+    /// 申请分布式缓存锁 🔖
+    /// </summary>
+    /// <param name="key">要锁定的key</param>
+    /// <param name="msTimeout">申请锁等待的时间，单位毫秒</param>
+    /// <param name="msExpire">锁过期时间，超过该时间没有主动释放则自动释放，必须整数秒，单位毫秒</param>
+    /// <param name="throwOnFailure">失败时是否抛出异常,如不抛出异常，可通过判断返回null得知申请锁失败</param>
+    /// <param name="throwMessage">抛出异常的文本</param>
+    /// <returns></returns>
+    [DisplayName("申请分布式缓存锁")]
+    public IDisposable? BeginCacheLock(string key, int msTimeout = 500, int msExpire = 10000, bool throwOnFailure = true, string throwMessage = "服务正忙，请稍后再试！")
+    {
+        try
+        {
+            return _cacheProvider.Cache.AcquireLock(key, msTimeout, msExpire, throwOnFailure);
+        }
+        catch
+        {
+            if (!throwOnFailure) return null;
+            throw Oops.Oh(throwMessage);
+        }
+    }
+
+    /// <summary>
+    /// 获取缓存键名集合 🔖
+    /// </summary>
+    /// <returns></returns>
+    [DisplayName("获取缓存键名集合")]
+    public List<string> GetKeyList()
+    {
+        return _cacheProvider.Cache == Cache.Default
+            ? [.. _cacheProvider.Cache.Keys.Where(u => u.StartsWith(_cacheOptions.Prefix)).Select(u => u[_cacheOptions.Prefix.Length..]).OrderBy(u => u)]
+            : [.. ((FullRedis)_cacheProvider.Cache).Search($"{_cacheOptions.Prefix}*", 0, int.MaxValue).Select(u => u[_cacheOptions.Prefix.Length..]).OrderBy(u => u)];
+    }
+
+    /// <summary>
+    /// 根据键名前缀获取缓存键名集合 🔖
+    /// </summary>
+    /// <param name="prefixKey">键名前缀</param>
+    /// <returns></returns>
+    [DisplayName("根据键名前缀获取缓存键名集合")]
+    public List<string> GetKeysByPrefixKey(string prefixKey)
+    {
+        return _cacheProvider.Cache == Cache.Default
+            ? _cacheProvider.Cache.Keys.Where(u => u.StartsWith($"{_cacheOptions.Prefix}{prefixKey}")).Select(u => u[_cacheOptions.Prefix.Length..]).ToList()
+            : ((FullRedis)_cacheProvider.Cache).Search($"{_cacheOptions.Prefix}{prefixKey}*", 0, int.MaxValue).Select(u => u[_cacheOptions.Prefix.Length..]).ToList();
+    }
+
+    /// <summary>
+    /// 删除缓存 🔖
+    /// </summary>
+    /// <param name="key"></param>
+    /// <returns></returns>
+    [ApiDescriptionSettings(Name = "Delete"), HttpPost]
+    [DisplayName("删除缓存")]
+    public int Remove(string key)
+    {
+        return _cacheProvider.Cache.Remove($"{_cacheOptions.Prefix}{key}");
+    }
+
+    /// <summary>
+    /// 根据键名前缀删除缓存 🔖
+    /// </summary>
+    /// <param name="prefixKey">键名前缀</param>
+    /// <returns></returns>
+    [ApiDescriptionSettings(Name = "DeleteByPreKey"), HttpPost]
+    [DisplayName("根据键名前缀删除缓存")]
+    public int RemoveByPrefixKey(string prefixKey)
+    {
+        var delKeys = _cacheProvider.Cache == Cache.Default
+            ? _cacheProvider.Cache.Keys.Where(u => u.StartsWith($"{_cacheOptions.Prefix}{prefixKey}")).ToArray()
+            : ((FullRedis)_cacheProvider.Cache).Search($"{_cacheOptions.Prefix}{prefixKey}*", 0, int.MaxValue).ToArray();
+        return _cacheProvider.Cache.Remove(delKeys);
+    }
+
+    /// <summary>
+    /// 清空所有缓存 🔖
+    /// </summary>
+    /// <returns></returns>
+    [DisplayName("清空所有缓存")]
+    [ApiDescriptionSettings(Name = "Clear"), HttpPost]
+    public void Clear()
+    {
+        var userManager = App.GetRequiredService<UserManager>();
+        if (userManager.SuperAdmin)
+        {
+            _cacheProvider.Cache.Clear();
+            Cache.Default.Clear();
+        }
+        else
+        {
+            var keys = _cacheProvider.Cache.Keys.Where(key => key.EndsWith(userManager.UserId.ToString())).ToList();
+            keys.ForEach(key => _cacheProvider.Cache.Remove(key));
+        }
+    }
+
+    /// <summary>
+    /// 增加缓存并设置过期时间
+    /// </summary>
+    /// <param name="key"></param>
+    /// <param name="value"></param>
+    /// <param name="expire"></param>
+    /// <returns></returns>
+    [NonAction]
+    public bool Set(string key, object value, TimeSpan? expire = null)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return false;
+
+        var cacheKey = $"{_cacheOptions.Prefix}{key}";
+        return expire.HasValue ? _cacheProvider.Cache.Set(cacheKey, value, expire.Value) : _cacheProvider.Cache.Set(cacheKey, value);
+    }
+
+    /// <summary>
+    /// 获取缓存
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="key"></param>
+    /// <returns></returns>
+    [NonAction]
+    public T Get<T>(string key)
+    {
+        return _cacheProvider.Cache.Get<T>($"{_cacheOptions.Prefix}{key}");
+    }
+
+    /// <summary>
+    /// 检查缓存是否存在
+    /// </summary>
+    /// <param name="key">键</param>
+    /// <returns></returns>
+    [NonAction]
+    public bool ExistKey(string key)
+    {
+        return _cacheProvider.Cache.ContainsKey($"{_cacheOptions.Prefix}{key}");
+    }
+
+    /// <summary>
+    /// 获取缓存值 🔖
+    /// </summary>
+    /// <param name="key"></param>
+    /// <returns></returns>
+    [DisplayName("获取缓存值")]
+    public object GetValue(string key)
+    {
+        if (string.IsNullOrEmpty(key)) return null;
+
+        // 若Key经过URL编码则进行解码
+        if (Regex.IsMatch(key, @"%[0-9a-fA-F]{2}"))
+            key = HttpUtility.UrlDecode(key);
+
+        var fullKey = $"{_cacheOptions.Prefix}{key}";
+
+        if (_cacheProvider.Cache == Cache.Default)
+            return _cacheProvider.Cache.Get<object>(fullKey);
+
+        if (_cacheProvider.Cache is FullRedis redisCache)
+        {
+            if (!redisCache.ContainsKey(fullKey))
+                return null;
+            try
+            {
+                var keyType = redisCache.TYPE(fullKey)?.ToLower();
+                switch (keyType)
+                {
+                    case "string":
+                        return redisCache.Get<string>(fullKey);
+
+                    case "list":
+                        var list = redisCache.GetList<string>(fullKey);
+                        return list?.ToList();
+
+                    case "hash":
+                        var hash = redisCache.GetDictionary<string>(fullKey);
+                        return hash?.ToDictionary(k => k.Key, v => v.Value);
+
+                    case "set":
+                        var set = redisCache.GetSet<string>(fullKey);
+                        return set?.ToArray();
+
+                    case "zset":
+                        var sortedSet = redisCache.GetSortedSet<string>(fullKey);
+                        return sortedSet?.Range(0, -1)?.ToList();
+
+                    case "none":
+                        return null;
+
+                    default:
+                        // 未知类型或特殊类型
+                        return new Dictionary<string, object>
+                        {
+                            { "key", key },
+                            { "type", keyType ?? "unknown" },
+                            { "message", "无法使用标准方式获取此类型数据" }
+                        };
+                }
+            }
+            catch (Exception ex)
+            {
+                return new Dictionary<string, object>
+                {
+                    { "key", key },
+                    { "error", ex.Message },
+                    { "type", "exception" }
+                };
+            }
+        }
+
+        return _cacheProvider.Cache.Get<object>(fullKey);
+    }
+
+    /// <summary>
+    /// 设置自动管道阈值
+    /// </summary>
+    /// <param name="threshold">累积多少条命令后自动提交，0 表示关闭</param>
+    /// <remarks>
+    /// 仅对 Redis 生效，用于把 N 次网络往返合并为约 N/threshold 次。
+    /// <para><b>使用约束（务必遵守）</b>：NewLife.Redis 6.6 存在缺陷——<c>StartPipeline()</c>
+    /// 生成的是空列表而非 <c>null</c>，而 <c>StopPipeline(true)</c> 只判了 <c>ps == null</c>，
+    /// 未判 <c>ps.Count == 0</c>。因此一旦管道内<b>残留 0 条命令</b>，后续操作会走到
+    /// <c>GetResponse(ns, 0)</c> 做一次永无响应的同步阻塞读而<b>永久挂起</b>
+    /// （实测写入数为阈值整数倍时必现）。</para>
+    /// <para>规避方式：批量写完后，若写入数恰为阈值整数倍，需<b>再补写至少 1 条</b>（幂等即可），
+    /// 确保由读操作触发提交时管道内非空。参见 <c>SysTenantService.CacheTenantAll</c> 的用法。
+    /// </para>
+    /// <para>另外注意：把阈值置回 0 <b>不会</b>提交缓冲区内的残余命令，需由一次读操作或
+    /// <c>Commit()</c> 触发提交。</para>
+    /// </remarks>
+    [NonAction]
+    public void SetAutoPipeline(int threshold)
+    {
+        if (_cacheProvider.Cache is FullRedis redis)
+            redis.AutoPipeline = threshold;
+    }
+
+    /// <summary>
+    /// 获取或添加缓存（在数据不存在时执行委托请求数据）
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="key"></param>
+    /// <param name="callback"></param>
+    /// <param name="expire">过期时间，单位秒</param>
+    /// <returns></returns>
+    [NonAction]
+    public T GetOrAdd<T>(string key, Func<string, T> callback, int expire = -1)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return default;
+        return _cacheProvider.Cache.GetOrAdd($"{_cacheOptions.Prefix}{key}", callback, expire);
+    }
+
+    public async Task<TR> AdGetAsync<TR>(String cacheName, Func<Task<TR>> del, TimeSpan? expiry = default) where TR : class
+    {
+        return await AdGetAsync<TR>(cacheName, del, [], expiry);
+    }
+
+    private async Task<T> AdGetAsync<T>(string cacheName, Delegate del, Object[] obs, TimeSpan? expiry) where T : class
+    {
+        var key = Key(cacheName, obs);
+        // 使用分布式锁
+        using (_cacheProvider.Cache.AcquireLock($@"lock:AdGetAsync:{cacheName}", 1000))
+        {
+            var value = Get<T>(key);
+            if (value != null)
+            {
+                return value;
+            }
+
+            value = await ((dynamic)del).DynamicInvoke(obs);
+            if (value is null or ICollection { Count: 0 })
+            {
+                return value;
+            }
+
+            if (expiry == null)
+            {
+                Set(key, value);
+            }
+            else
+            {
+                Set(key, value, (TimeSpan)expiry);
+            }
+
+            return value;
+        }
+    }
+
+    private static string Key(string cacheName, object[] obs)
+    {
+        if (obs.OfType<TimeSpan>().Any()) throw new Exception("缓存参数类型不能是:TimeSpan类型");
+        StringBuilder sb = new(cacheName);
+        if (obs is { Length: > 0 })
+        {
+            sb.Append(':');
+            foreach (var a in obs) sb.Append($"<{KeySingle(a)}>");
+        }
+        return sb.ToString();
+    }
+
+    private static string KeySingle(object t)
+    {
+        return t.GetType().IsClass && !t.GetType().IsPrimitive ? JsonConvert.SerializeObject(t) : t.ToString();
+    }
+
+    /// <summary>
+    /// Hash匹配
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="key"></param>
+    /// <returns></returns>
+    private IDictionary<String, T> GetHashMap<T>(string key)
+    {
+        // 与 Set/Get 保持一致，统一补上全局缓存前缀
+        return _cacheProvider.Cache.GetDictionary<T>($"{_cacheOptions.Prefix}{key}");
+    }
+
+    /// <summary>
+    /// 添加一条HASH
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="key"></param>
+    /// <param name="hashKey"></param>
+    /// <param name="value"></param>
+    [NonAction]
+    public void HashAdd<T>(string key, string hashKey, T value)
+    {
+        var hash = GetHashMap<T>(key);
+        hash.Add(hashKey, value);
+    }
+
+    /// <summary>
+    /// 获取一条HASH
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="key"></param>
+    /// <param name="field"></param>
+    /// <returns></returns>
+    [NonAction]
+    public T HashGetOne<T>(string key, string field)
+    {
+        var hash = GetHashMap<T>(key);
+        return hash.TryGetValue(field, out T value) ? value : default;
+    }
+
+    /// <summary>
+    /// 添加或更新一条HASH
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="key"></param>
+    /// <param name="hashKey"></param>
+    /// <param name="value"></param>
+    [NonAction]
+    public void HashAddOrUpdate<T>(string key, string hashKey, T value)
+    {
+        var hash = GetHashMap<T>(key);
+        if (hash.ContainsKey(hashKey))
+            hash[hashKey] = value;
+        else
+            hash.Add(hashKey, value);
+    }
+
+    /// <summary>
+    /// 直接写入一条HASH（不做存在性探测）
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="key"></param>
+    /// <param name="hashKey"></param>
+    /// <param name="value"></param>
+    [NonAction]
+    public void HashSet<T>(string key, string hashKey, T value)
+    {
+        GetHashMap<T>(key)[hashKey] = value;
+    }
+
+    /// <summary>
+    /// 获取所有HASH
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="key"></param>
+    /// <returns></returns>
+    [NonAction]
+    public ICollection<T> HashGetAll<T>(string key)
+    {
+        var hash = GetHashMap<T>(key);
+        return hash.Values;
+    }
+
+    /// <summary>
+    /// 获取HASH的所有field
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="key"></param>
+    /// <returns></returns>
+    [NonAction]
+    public ICollection<String> HashGetAllKeys<T>(string key)
+    {
+        var hash = GetHashMap<T>(key);
+        return hash.Keys;
+    }
+
+    /// <summary>
+    /// 删除HASH
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="key"></param>
+    /// <param name="fields"></param>
+    /// <returns></returns>
+    [NonAction]
+    public int HashDel<T>(string key, params string[] fields)
+    {
+        var hash = GetHashMap<T>(key);
+        fields.ToList().ForEach(t => hash.Remove(t));
+        return fields.Length;
+    }
+}
