@@ -52,9 +52,10 @@
 					<template #default="{ row }">{{ fmt(row.lastReportTime) }}</template>
 				</el-table-column>
 				<el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-				<el-table-column label="操作" width="210" fixed="right">
+				<el-table-column label="操作" width="270" fixed="right">
 					<template #default="{ row }">
 						<el-button link type="primary" @click="handleSend(row)">下发</el-button>
+						<el-button link type="warning" @click="handleKey(row)">密钥</el-button>
 						<el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
 						<el-button link type="danger" @click="handleDelete(row)">删除</el-button>
 					</template>
@@ -138,6 +139,26 @@
 				<el-button type="primary" :loading="sending" @click="doSend">下发</el-button>
 			</template>
 		</el-dialog>
+
+		<el-dialog v-model="keyVisible" title="接入密钥" width="520px" destroy-on-close>
+			<el-alert
+				type="warning"
+				:closable="false"
+				show-icon
+				title="密钥仅在此处显示一次，请立即复制并配置到边缘节点。重置后旧密钥立即失效。"
+			/>
+			<div v-if="keyValue" class="key-box">
+				<el-input v-model="keyValue" readonly>
+					<template #append>
+						<el-button @click="copyKey">复制</el-button>
+					</template>
+				</el-input>
+			</div>
+			<template #footer>
+				<el-button @click="keyVisible = false">关闭</el-button>
+				<el-button type="primary" :loading="keyBusy" @click="doResetKey">重置密钥</el-button>
+			</template>
+		</el-dialog>
 	</div>
 </template>
 
@@ -162,6 +183,11 @@ const sendVisible = ref(false);
 const sending = ref(false);
 const sendTarget = ref({});
 const sendForm = reactive({ kind: 'config', payload: '' });
+
+const keyVisible = ref(false);
+const keyBusy = ref(false);
+const keyValue = ref('');
+const keyTarget = ref({});
 
 const query = reactive({ keyword: '', online: null });
 
@@ -271,6 +297,37 @@ const doSend = async () => {
 	}
 };
 
+const handleKey = (row) => {
+	keyTarget.value = row;
+	keyValue.value = '';
+	keyVisible.value = true;
+};
+
+const doResetKey = () => {
+	ElMessageBox.confirm(`重置后「${keyTarget.value.name}」的旧密钥将立即失效，确认继续？`, '重置接入密钥', { type: 'warning' })
+		.then(async () => {
+			keyBusy.value = true;
+			try {
+				const res = await iotEdgeApi.regenerateKey(keyTarget.value.id);
+				keyValue.value = res?.data?.result?.accessKey || '';
+				ElMessage.success('密钥已重置');
+			} finally {
+				keyBusy.value = false;
+			}
+		})
+		.catch(() => {});
+};
+
+const copyKey = async () => {
+	if (!keyValue.value) return;
+	try {
+		await navigator.clipboard.writeText(keyValue.value);
+		ElMessage.success('已复制到剪贴板');
+	} catch {
+		ElMessage.warning('复制失败，请手动选择复制');
+	}
+};
+
 onMounted(() => { loadOrgs(); loadList(); });
 </script>
 
@@ -278,4 +335,5 @@ onMounted(() => { loadOrgs(); loadList(); });
 .iot-page { padding: 16px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .pagination { margin-top: 12px; display: flex; justify-content: flex-end; }
+.key-box { margin-top: 16px; }
 </style>

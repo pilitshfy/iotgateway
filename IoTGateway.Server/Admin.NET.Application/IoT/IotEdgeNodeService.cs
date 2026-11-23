@@ -106,6 +106,7 @@ public class IotEdgeNodeService : IDynamicApiController
         var node = await _rep.AsQueryable().FirstAsync(u => u.NodeCode == input.NodeCode);
         if (node == null) throw Oops.Oh("边缘节点不存在");
         if (!node.Enabled) throw Oops.Oh("边缘节点已禁用");
+        ValidateAccessKey(node.AccessKey, input.AccessKey);
         var now = DateTime.UtcNow;
         var version = string.IsNullOrWhiteSpace(input.Version) ? node.Version : input.Version;
         await _rep.AsUpdateable()
@@ -115,6 +116,24 @@ public class IotEdgeNodeService : IDynamicApiController
             .SetColumns(u => u.UpdateTime == now)
             .Where(u => u.Id == node.Id)
             .ExecuteCommandAsync();
+    }
+
+    /// <summary>
+    /// 重置边缘节点接入密钥（返回明文，仅此一次）
+    /// </summary>
+    [DisplayName("重置接入密钥"), ApiDescriptionSettings(Name = "RegenerateKey"), HttpPost]
+    public async Task<object> RegenerateKey([FromBody] IotIdInput input)
+    {
+        if (input == null || input.Id <= 0) throw Oops.Oh("id不能为空");
+        var entity = await (await ScopedQuery()).FirstAsync(u => u.Id == input.Id)
+            ?? throw Oops.Oh("边缘节点不存在或无权访问");
+        var key = GenerateAccessKey();
+        await _rep.AsUpdateable()
+            .SetColumns(u => u.AccessKey == key)
+            .SetColumns(u => u.UpdateTime == DateTime.UtcNow)
+            .Where(u => u.Id == entity.Id)
+            .ExecuteCommandAsync();
+        return new { accessKey = key };
     }
 
     /// <summary>
@@ -147,6 +166,7 @@ public class IotEdgeNodeService : IDynamicApiController
         Validate(input);
         if (await _rep.AsQueryable().AnyAsync(u => u.NodeCode == input.NodeCode))
             throw Oops.Oh("节点编号已存在");
+        input.AccessKey = GenerateAccessKey();
         await _rep.InsertAsync(input);
         return input.Id;
     }
@@ -162,6 +182,7 @@ public class IotEdgeNodeService : IDynamicApiController
         if (await _rep.AsQueryable().AnyAsync(u => u.NodeCode == input.NodeCode && u.Id != input.Id))
             throw Oops.Oh("节点编号已存在");
         input.CreateTime = entity.CreateTime;
+        input.AccessKey = entity.AccessKey; // 密钥不随编辑变更，需走重置密钥
         await _rep.UpdateAsync(input);
     }
 
@@ -196,5 +217,25 @@ public class IotEdgeNodeService : IDynamicApiController
         if (string.IsNullOrWhiteSpace(input.Name)) throw Oops.Oh("节点名称不能为空");
         if (string.IsNullOrWhiteSpace(input.NodeCode)) throw Oops.Oh("节点编号不能为空");
         if (input.NodeCode.Length > 128) throw Oops.Oh("节点编号长度不能超过128");
+    }
+
+    /// <summary>生成 32 位十六进制接入密钥</summary>
+    private static string GenerateAccessKey() => Guid.NewGuid().ToString("N");
+
+    /// <summary>校验接入密钥（定长比较，防时序侧信道）</summary>
+    private static void ValidateAccessKey(string expected, string provided)
+    {
+        if (string.IsNullOrWhiteSpace(expected))
+            throw Oops.Oh("该节点尚未配置接入密钥，请先在边缘节点管理重置密钥");
+        if (string.IsNullOrEmpty(provided) || !FixedTimeEquals(expected, provided))
+            throw Oops.Oh("接入密钥错误");
+    }
+
+    private static bool FixedTimeEquals(string a, string b)
+    {
+        if (a == null || b == null || a.Length != b.Length) return false;
+        var diff = 0;
+        for (var i = 0; i < a.Length; i++) diff |= a[i] ^ b[i];
+        return diff == 0;
     }
 }

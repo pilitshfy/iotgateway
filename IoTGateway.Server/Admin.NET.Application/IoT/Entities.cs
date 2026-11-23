@@ -259,6 +259,12 @@ public class IotEdgeNode : EntityBase
     [SugarColumn(ColumnDescription = "节点编号", Length = 128)]
     public string NodeCode { get; set; }
 
+    /// <summary>接入密钥（心跳/上报鉴权，不在接口返回）</summary>
+    [SugarColumn(ColumnDescription = "接入密钥", Length = 64, IsNullable = true)]
+    [Newtonsoft.Json.JsonIgnore]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string AccessKey { get; set; }
+
     /// <summary>所属组织Id</summary>
     [SugarColumn(ColumnDescription = "所属组织Id", DefaultValue = "0")]
     public long OrgId { get; set; }

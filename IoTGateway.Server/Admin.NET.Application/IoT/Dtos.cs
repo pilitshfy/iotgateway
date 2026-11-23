@@ -106,6 +106,9 @@ public class IotEdgeNodeHeartbeatInput
     [Required(ErrorMessage = "节点编号不能为空")]
     public string NodeCode { get; set; }
 
+    /// <summary>接入密钥（节点注册时生成，用于心跳鉴权）</summary>
+    public string AccessKey { get; set; }
+
     /// <summary>节点固件/程序版本</summary>
     public string Version { get; set; }
 }
@@ -272,4 +275,66 @@ public class IotRpcLogPageInput : BasePageInput
     public long? DeviceId { get; set; }
 
     public string Keyword { get; set; }
+}
+
+/// <summary>
+/// 报表查询输入
+/// </summary>
+public class IotReportQueryInput
+{
+    /// <summary>设备Id</summary>
+    public long DeviceId { get; set; }
+
+    /// <summary>变量Id集合（为空则取设备全部变量）</summary>
+    public List<long> VariableIds { get; set; } = new();
+
+    /// <summary>起始时间（ISO 8601，无时区按 UTC）</summary>
+    public string StartTime { get; set; }
+
+    /// <summary>结束时间（ISO 8601，无时区按 UTC）</summary>
+    public string EndTime { get; set; }
+
+    /// <summary>聚合方式：raw/avg/max/min/sum/count</summary>
+    public string Aggregate { get; set; } = "avg";
+
+    /// <summary>时间粒度：minute/hour/day/month（聚合时生效）</summary>
+    public string Granularity { get; set; } = "hour";
+}
+
+/// <summary>
+/// 报表列（变量）
+/// </summary>
+public class IotReportColumnDto
+{
+    public long VariableId { get; set; }
+    public string Name { get; set; }
+    public string Description { get; set; }
+}
+
+/// <summary>
+/// 报表行（时间桶 + 各变量值）
+/// </summary>
+public class IotReportRowDto
+{
+    /// <summary>时间桶（ISO 8601 UTC）</summary>
+    public string Time { get; set; }
+
+    /// <summary>变量Id -> 聚合值（无数据为 null）</summary>
+    public Dictionary<long, double?> Values { get; set; } = new();
+}
+
+/// <summary>
+/// 报表查询结果
+/// </summary>
+public class IotReportResultDto
+{
+    public long DeviceId { get; set; }
+    public string DeviceName { get; set; }
+    public string Aggregate { get; set; }
+    public string Granularity { get; set; }
+    public int BucketSeconds { get; set; }
+    public string StartTime { get; set; }
+    public string EndTime { get; set; }
+    public List<IotReportColumnDto> Columns { get; set; } = new();
+    public List<IotReportRowDto> Rows { get; set; } = new();
 }

@@ -94,6 +94,7 @@ export const iotEdgeApi = {
 	delete: (id: number) => request({ url: '/api/iotEdgeNode/delete', method: 'post', data: { id } }),
 	batchDelete: (ids: number[]) => request({ url: '/api/iotEdgeNode/batchDelete', method: 'post', data: { ids } }),
 	send: (data: { id: number; kind: string; payload: string }) => request({ url: '/api/iotEdgeNode/send', method: 'post', data }),
+	regenerateKey: (id: number) => request({ url: '/api/iotEdgeNode/regenerateKey', method: 'post', data: { id } }),
 };
 
 /**
@@ -149,6 +150,13 @@ export const iotAlarmChannelApi = {
  */
 export const iotHistoryApi = {
 	query: (data: any) => request({ url: '/api/iotHistory/queryHistory', method: 'post', data }),
+};
+
+/**
+ * IoT 报表 BI
+ */
+export const iotReportApi = {
+	query: (data: any) => request({ url: '/api/iotReport/query', method: 'post', data }),
 };
 
 /**

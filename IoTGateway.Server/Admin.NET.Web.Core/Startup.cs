@@ -85,6 +85,13 @@ public class Startup : AppStartup
         services.AddSingleton<IotEdgeIngestService>();
         services.AddHostedService(sp => sp.GetRequiredService<IotEdgeIngestService>());
 
+        // IoT 入站统一处理器 + Kafka 双通道（入站消费 + 出向转发）
+        services.Configure<IotKafkaOptions>(App.Configuration.GetSection("Kafka"));
+        services.AddSingleton<IotEdgeIngestProcessor>();
+        services.AddSingleton<IotKafkaProducer>();
+        services.AddSingleton<IotKafkaIngestService>();
+        services.AddHostedService(sp => sp.GetRequiredService<IotKafkaIngestService>());
+
         // IoT 时序历史存储（TimescaleDB）：批量落库 + 查询
         services.Configure<IotHistoryOptions>(App.Configuration.GetSection("IotHistory"));
         services.AddSingleton<IotHistorySink>();
