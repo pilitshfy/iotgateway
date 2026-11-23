@@ -83,6 +83,19 @@ export const iotSystemConfigApi = {
 };
 
 /**
+ * IoT 边缘节点（P0 模型）
+ */
+export const iotEdgeApi = {
+	page: (data: any) => request({ url: '/api/iotEdgeNode/page', method: 'post', data }),
+	list: (data?: any) => request({ url: '/api/iotEdgeNode/list', method: 'post', data }),
+	detail: (id: number) => request({ url: '/api/iotEdgeNode/detail', method: 'get', params: { id } }),
+	add: (data: any) => request({ url: '/api/iotEdgeNode/add', method: 'post', data }),
+	update: (data: any) => request({ url: '/api/iotEdgeNode/update', method: 'post', data }),
+	delete: (id: number) => request({ url: '/api/iotEdgeNode/delete', method: 'post', data: { id } }),
+	batchDelete: (ids: number[]) => request({ url: '/api/iotEdgeNode/batchDelete', method: 'post', data: { ids } }),
+};
+
+/**
  * RPC 日志
  */
 export const iotRpcLogApi = {

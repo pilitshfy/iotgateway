@@ -83,6 +83,34 @@ public class IotDriverPageInput : BasePageInput
 }
 
 /// <summary>
+/// 边缘节点分页查询
+/// </summary>
+public class IotEdgeNodePageInput : BasePageInput
+{
+    /// <summary>关键字（名称/编号）</summary>
+    public string Keyword { get; set; }
+
+    /// <summary>所属组织Id（含子组织）</summary>
+    public long? OrgId { get; set; }
+
+    /// <summary>在线状态筛选</summary>
+    public bool? Online { get; set; }
+}
+
+/// <summary>
+/// 边缘节点心跳上报输入
+/// </summary>
+public class IotEdgeNodeHeartbeatInput
+{
+    /// <summary>节点编号（唯一寻址）</summary>
+    [Required(ErrorMessage = "节点编号不能为空")]
+    public string NodeCode { get; set; }
+
+    /// <summary>节点固件/程序版本</summary>
+    public string Version { get; set; }
+}
+
+/// <summary>
 /// 通讯配置分页查询
 /// </summary>
 public class IotDeviceConfigPageInput : BasePageInput

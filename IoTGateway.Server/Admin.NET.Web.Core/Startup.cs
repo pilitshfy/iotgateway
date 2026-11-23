@@ -79,6 +79,9 @@ public class Startup : AppStartup
         services.AddSingleton<IotRpcRuntime>();
         services.AddHostedService(sp => sp.GetRequiredService<IotRpcRuntime>());
         services.AddHostedService<IotModbusSlaveService>();
+        // IoT 边缘节点入站（MQTT 心跳 + 遥测）
+        services.AddSingleton<IotEdgeIngestService>();
+        services.AddHostedService(sp => sp.GetRequiredService<IotEdgeIngestService>());
 
         // IoT 时序历史存储（TimescaleDB）：批量落库 + 查询
         services.Configure<IotHistoryOptions>(App.Configuration.GetSection("IotHistory"));

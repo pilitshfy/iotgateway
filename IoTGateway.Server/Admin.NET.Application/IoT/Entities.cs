@@ -34,6 +34,12 @@ public class IotDevice : EntityBase
     [SugarColumn(ColumnDescription = "所属组织Id", DefaultValue = "0")]
     public long OrgId { get; set; }
 
+    /// <summary>
+    /// 边缘节点Id（归属的边缘节点，可为空表示本机直采）
+    /// </summary>
+    [SugarColumn(ColumnDescription = "边缘节点Id", IsNullable = true)]
+    public long? EdgeNodeId { get; set; }
+
     [SugarColumn(ColumnName = "SortIndex", ColumnDescription = "排序")]
     public int Index { get; set; }
 
@@ -237,4 +243,51 @@ public class IotRpcLog : EntityBase
 
     [SugarColumn(ColumnDescription = "描述", Length = 512, IsNullable = true)]
     public string Description { get; set; }
+}
+
+/// <summary>
+/// 边缘节点（P0 模型：集团级边缘接入节点注册/心跳/在线状态）
+/// </summary>
+[SugarTable("IotEdgeNode", "边缘节点")]
+public class IotEdgeNode : EntityBase
+{
+    /// <summary>节点名称</summary>
+    [SugarColumn(ColumnDescription = "节点名称", Length = 128)]
+    public string Name { get; set; }
+
+    /// <summary>节点编号（唯一，用于设备接入鉴权/寻址）</summary>
+    [SugarColumn(ColumnDescription = "节点编号", Length = 128)]
+    public string NodeCode { get; set; }
+
+    /// <summary>所属组织Id</summary>
+    [SugarColumn(ColumnDescription = "所属组织Id", DefaultValue = "0")]
+    public long OrgId { get; set; }
+
+    /// <summary>是否启用</summary>
+    [SugarColumn(ColumnDescription = "是否启用")]
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>是否在线（由心跳更新）</summary>
+    [SugarColumn(ColumnDescription = "是否在线", IsNullable = true)]
+    public bool? Online { get; set; }
+
+    /// <summary>固件/客户端版本</summary>
+    [SugarColumn(ColumnDescription = "版本", Length = 64, IsNullable = true)]
+    public string Version { get; set; }
+
+    /// <summary>最后心跳时间</summary>
+    [SugarColumn(ColumnDescription = "最后心跳时间", IsNullable = true)]
+    public DateTime? LastHeartbeatTime { get; set; }
+
+    /// <summary>最后上报时间</summary>
+    [SugarColumn(ColumnDescription = "最后上报时间", IsNullable = true)]
+    public DateTime? LastReportTime { get; set; }
+
+    /// <summary>备注</summary>
+    [SugarColumn(ColumnDescription = "备注", Length = 512, IsNullable = true)]
+    public string Remark { get; set; }
+
+    /// <summary>组织名称（不映射数据库）</summary>
+    [SugarColumn(IsIgnore = true)]
+    public string OrgName { get; set; }
 }

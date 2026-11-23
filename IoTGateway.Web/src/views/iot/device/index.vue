@@ -82,6 +82,9 @@
 				<el-table-column prop="orgName" label="所属组织" min-width="140" show-overflow-tooltip />
 				<el-table-column prop="index" label="排序" width="80" />
 				<el-table-column prop="driverName" label="驱动" min-width="130" />
+				<el-table-column label="所属边缘节点" min-width="140" show-overflow-tooltip>
+					<template #default="{ row }">{{ edgeNodeName(row.edgeNodeId) }}</template>
+				</el-table-column>
 				<el-table-column label="类型" width="90">
 					<template #default="{ row }">
 						<el-tag :type="row.deviceTypeEnum === 0 ? 'info' : 'success'">{{ row.deviceTypeEnum === 0 ? '分组' : '设备' }}</el-tag>
@@ -152,6 +155,11 @@
 				<el-form-item label="父级分组">
 					<el-select v-model="form.parentId" placeholder="顶级" clearable style="width: 100%">
 						<el-option v-for="item in batchDialogVisible ? batchGroups : formGroups" :key="item.id" :label="item.deviceName" :value="item.id" />
+					</el-select>
+				</el-form-item>
+				<el-form-item label="所属边缘节点">
+					<el-select v-model="form.edgeNodeId" placeholder="请选择边缘节点" clearable filterable style="width: 100%">
+						<el-option v-for="item in edgeNodes" :key="item.id" :label="item.name" :value="item.id" />
 					</el-select>
 				</el-form-item>
 				<el-form-item label="排序">
@@ -487,7 +495,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { iotDeviceApi, iotDeviceConfigApi, iotDeviceVariableApi, iotDriverApi } from '/@/api/iot';
+import { iotDeviceApi, iotDeviceConfigApi, iotDeviceVariableApi, iotDriverApi, iotEdgeApi } from '/@/api/iot';
 import { getAPI } from '/@/utils/axios-utils';
 import { SysOrgApi } from '/@/api-services/api';
 import { useUserInfo } from '/@/stores/userInfo';
@@ -496,6 +504,7 @@ const loading = ref(false);
 const saving = ref(false);
 const tableData = ref([]);
 const drivers = ref([]);
+const edgeNodes = ref([]);
 const groups = ref([]);
 const orgTree = ref([]);
 const orgTreeProps = { label: 'name', children: 'children', disabled: 'disabled' };
@@ -653,6 +662,7 @@ const form = reactive({
 	cgUpload: false,
 	description: '',
 	parentId: null,
+	edgeNodeId: null,
 });
 
 const formGroups = computed(() => groups.value.filter((item) => item.id !== form.id && (!form.orgId || item.orgId === form.orgId)));
@@ -688,6 +698,17 @@ const loadDrivers = async () => {
 	drivers.value = res.data.result || [];
 };
 
+const loadEdgeNodes = async () => {
+	try {
+		const res = await iotEdgeApi.list({});
+		edgeNodes.value = res.data.result || [];
+	} catch {
+		edgeNodes.value = [];
+	}
+};
+
+const edgeNodeName = (id) => (id == null ? '-' : edgeNodes.value.find((e) => Number(e.id) === Number(id))?.name ?? '-');
+
 const loadGroups = async () => {
 	const res = await iotDeviceApi.list({ deviceTypeEnum: 0 });
 	groups.value = res.data.result || [];
@@ -715,6 +736,7 @@ const resetForm = () => {
 		cgUpload: false,
 		description: '',
 		parentId: null,
+		edgeNodeId: null,
 	});
 };
 
@@ -747,6 +769,7 @@ const openEdit = (row) => {
 		cgUpload: row.cgUpload,
 		description: row.description,
 		parentId: row.parentId,
+		edgeNodeId: row.edgeNodeId ?? null,
 	});
 	dialogVisible.value = true;
 };
@@ -1185,6 +1208,7 @@ const writeVariables = async () => {
 onMounted(async () => {
 	await loadOrgs();
 	await loadDrivers();
+	await loadEdgeNodes();
 	await loadGroups();
 	await loadData();
 	await loadStats();

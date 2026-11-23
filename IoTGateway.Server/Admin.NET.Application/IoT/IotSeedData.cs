@@ -18,6 +18,12 @@ public class IotMenuSeedData : ISqlSugarEntitySeedData<SysMenu>
             new SysMenu{ Id=1311000010104, Pid=1311000010101, Title="编辑", Permission="iotDevice:update", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=100 },
             new SysMenu{ Id=1311000010105, Pid=1311000010101, Title="删除", Permission="iotDevice:delete", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=100 },
 
+            new SysMenu{ Id=1311000011001, Pid=1311000000101, Title="边缘节点", Path="/iot/edge", Name="iotEdge", Component="/iot/edge/index", Icon="ele-Share", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-23 00:00:00"), OrderNo=105 },
+            new SysMenu{ Id=1311000011002, Pid=1311000011001, Title="查询", Permission="iotEdge:page", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-23 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000011003, Pid=1311000011001, Title="增加", Permission="iotEdge:add", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-23 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000011004, Pid=1311000011001, Title="编辑", Permission="iotEdge:update", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-23 00:00:00"), OrderNo=100 },
+            new SysMenu{ Id=1311000011005, Pid=1311000011001, Title="删除", Permission="iotEdge:delete", Type=MenuTypeEnum.Btn, CreateTime=DateTime.Parse("2026-11-23 00:00:00"), OrderNo=100 },
+
             new SysMenu{ Id=1311000010201, Pid=1311000000101, Title="驱动管理", Path="/iot/driver", Name="iotDriver", Component="/iot/driver/index", Icon="ele-Box", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=110 },
             new SysMenu{ Id=1311000010301, Pid=1311000000101, Title="传输配置", Path="/iot/config", Name="iotConfig", Component="/iot/config/index", Icon="ele-Setting", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=120 },
             new SysMenu{ Id=1311000010401, Pid=1311000000101, Title="MQTT状态", Path="/iot/mqtt", Name="iotMqtt", Component="/iot/mqtt/index", Icon="ele-Monitor", Type=MenuTypeEnum.Menu, CreateTime=DateTime.Parse("2026-11-21 00:00:00"), OrderNo=130 },

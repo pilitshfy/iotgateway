@@ -129,6 +129,7 @@ public class IotDeviceService : IDynamicApiController, ITransient
         db.EnforcePeriod = input.EnforcePeriod;
         db.CmdPeriod = input.CmdPeriod;
         db.DeviceTypeEnum = input.DeviceTypeEnum;
+        db.EdgeNodeId = input.EdgeNodeId;
         await _deviceRep.AsUpdateable(db).ExecuteCommandAsync();
         if (Runtime != null) await Runtime.RestartDeviceAsync(input.Id);
     }
