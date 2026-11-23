@@ -20,17 +20,20 @@ public class IotEdgeNodeService : IDynamicApiController
     private readonly SqlSugarRepository<SysOrg> _orgRep;
     private readonly SqlSugarRepository<IotDevice> _deviceRep;
     private readonly IotOrgScopeService _orgScope;
+    private readonly IIotEdgeDownlink _downlink;
 
     public IotEdgeNodeService(
         SqlSugarRepository<IotEdgeNode> rep,
         SqlSugarRepository<SysOrg> orgRep,
         SqlSugarRepository<IotDevice> deviceRep,
-        IotOrgScopeService orgScope)
+        IotOrgScopeService orgScope,
+        IIotEdgeDownlink downlink)
     {
         _rep = rep;
         _orgRep = orgRep;
         _deviceRep = deviceRep;
         _orgScope = orgScope;
+        _downlink = downlink;
     }
 
     /// <summary>
@@ -112,6 +115,28 @@ public class IotEdgeNodeService : IDynamicApiController
             .SetColumns(u => u.UpdateTime == now)
             .Where(u => u.Id == node.Id)
             .ExecuteCommandAsync();
+    }
+
+    /// <summary>
+    /// 边缘节点下发（配置/指令，经 MQTT 主题 edge/{nodeCode}/{kind}）
+    /// </summary>
+    [DisplayName("边缘节点下发"), ApiDescriptionSettings(Name = "Send"), HttpPost]
+    public async Task<object> Send([FromBody] IotEdgeNodeSendInput input)
+    {
+        if (input == null || input.Id <= 0) throw Oops.Oh("节点Id不能为空");
+        var entity = await (await ScopedQuery()).FirstAsync(u => u.Id == input.Id)
+            ?? throw Oops.Oh("边缘节点不存在或无权访问");
+        if (!entity.Enabled) throw Oops.Oh("边缘节点已禁用");
+        if (string.IsNullOrWhiteSpace(input.Payload)) throw Oops.Oh("下发内容不能为空");
+
+        var kind = string.IsNullOrWhiteSpace(input.Kind) ? "config" : input.Kind.Trim().ToLowerInvariant();
+        if (kind != "config" && kind != "command") throw Oops.Oh("下发类型仅支持 config 或 command");
+        if (!_downlink.IsRunning) throw Oops.Oh("MQTT 服务未运行，无法下发");
+
+        var topic = $"edge/{entity.NodeCode}/{kind}";
+        var retain = kind == "config";
+        await _downlink.PublishAsync(topic, input.Payload, retain);
+        return new { topic, retain, online = entity.Online ?? false };
     }
 
     [DisplayName("新增边缘节点"), ApiDescriptionSettings(Name = "Add"), HttpPost]

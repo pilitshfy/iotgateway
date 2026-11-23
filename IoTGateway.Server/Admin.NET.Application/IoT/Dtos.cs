@@ -111,6 +111,22 @@ public class IotEdgeNodeHeartbeatInput
 }
 
 /// <summary>
+/// 边缘节点下发输入（配置/指令）
+/// </summary>
+public class IotEdgeNodeSendInput
+{
+    /// <summary>节点Id</summary>
+    public long Id { get; set; }
+
+    /// <summary>下发类型：config（配置，retain 持久化）/ command（指令）</summary>
+    public string Kind { get; set; } = "config";
+
+    /// <summary>下发内容（JSON 字符串或纯文本）</summary>
+    [Required(ErrorMessage = "下发内容不能为空")]
+    public string Payload { get; set; }
+}
+
+/// <summary>
 /// 通讯配置分页查询
 /// </summary>
 public class IotDeviceConfigPageInput : BasePageInput

@@ -52,8 +52,9 @@
 					<template #default="{ row }">{{ fmt(row.lastReportTime) }}</template>
 				</el-table-column>
 				<el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
-				<el-table-column label="操作" width="150" fixed="right">
+				<el-table-column label="操作" width="210" fixed="right">
 					<template #default="{ row }">
+						<el-button link type="primary" @click="handleSend(row)">下发</el-button>
 						<el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
 						<el-button link type="danger" @click="handleDelete(row)">删除</el-button>
 					</template>
@@ -104,6 +105,39 @@
 				</el-form-item>
 			</el-form>
 		</el-drawer>
+
+		<el-dialog v-model="sendVisible" title="下发配置 / 指令" width="560px" destroy-on-close>
+			<el-form label-width="90px">
+				<el-form-item label="目标节点">
+					<el-input :model-value="`${sendTarget.name || ''} (${sendTarget.nodeCode || ''})`" disabled />
+				</el-form-item>
+				<el-form-item label="下发类型">
+					<el-radio-group v-model="sendForm.kind">
+						<el-radio value="config">配置（retain 持久化）</el-radio>
+						<el-radio value="command">指令（一次性）</el-radio>
+					</el-radio-group>
+				</el-form-item>
+				<el-form-item label="内容">
+					<el-input
+						v-model="sendForm.payload"
+						type="textarea"
+						:rows="10"
+						placeholder='JSON 或纯文本，例如 {"sampleInterval":5000}'
+					/>
+				</el-form-item>
+				<el-alert
+					v-if="sendTarget.online !== true"
+					type="warning"
+					:closable="false"
+					show-icon
+					title="节点当前离线：配置将以 retain 方式保留，节点重连后可拉取；指令可能丢失。"
+				/>
+			</el-form>
+			<template #footer>
+				<el-button @click="sendVisible = false">取消</el-button>
+				<el-button type="primary" :loading="sending" @click="doSend">下发</el-button>
+			</template>
+		</el-dialog>
 	</div>
 </template>
 
@@ -123,6 +157,11 @@ const pageSize = ref(10);
 const orgOptions = ref([]);
 const drawerVisible = ref(false);
 const isEdit = ref(false);
+
+const sendVisible = ref(false);
+const sending = ref(false);
+const sendTarget = ref({});
+const sendForm = reactive({ kind: 'config', payload: '' });
 
 const query = reactive({ keyword: '', online: null });
 
@@ -203,6 +242,33 @@ const handleDelete = (row) => {
 			loadList();
 		})
 		.catch(() => {});
+};
+
+const handleSend = (row) => {
+	sendTarget.value = row;
+	sendForm.kind = 'config';
+	sendForm.payload = '';
+	sendVisible.value = true;
+};
+
+const doSend = async () => {
+	if (!sendForm.payload || !sendForm.payload.trim()) {
+		ElMessage.warning('请填写下发内容');
+		return;
+	}
+	sending.value = true;
+	try {
+		const res = await iotEdgeApi.send({ id: sendTarget.value.id, kind: sendForm.kind, payload: sendForm.payload });
+		const r = res?.data?.result || {};
+		ElMessage.success(
+			r.online
+				? `已下发至 ${r.topic}`
+				: `已下发至 ${r.topic}（节点离线，配置已 retain 待重连拉取）`
+		);
+		sendVisible.value = false;
+	} finally {
+		sending.value = false;
+	}
 };
 
 onMounted(() => { loadOrgs(); loadList(); });

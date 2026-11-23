@@ -93,6 +93,7 @@ export const iotEdgeApi = {
 	update: (data: any) => request({ url: '/api/iotEdgeNode/update', method: 'post', data }),
 	delete: (id: number) => request({ url: '/api/iotEdgeNode/delete', method: 'post', data: { id } }),
 	batchDelete: (ids: number[]) => request({ url: '/api/iotEdgeNode/batchDelete', method: 'post', data: { ids } }),
+	send: (data: { id: number; kind: string; payload: string }) => request({ url: '/api/iotEdgeNode/send', method: 'post', data }),
 };
 
 /**

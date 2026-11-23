@@ -49,6 +49,8 @@ public class Startup : AppStartup
 
         // IoT MQTT Broker（TCP + WebSocket 共用 1888 端口，由 MQTTnet.AspNetCore 托管）
         services.AddSingleton<IotMqttServer>();
+        // 边缘节点下行通道（应用层通过接口调用 PublishAsync 下发配置/指令）
+        services.AddSingleton<IIotEdgeDownlink, IotEdgeDownlink>();
         services.AddHostedMqttServer(options => options.WithoutDefaultEndpoint())
             .AddMqttConnectionHandler()
             .AddMqttWebSocketServerAdapter()
