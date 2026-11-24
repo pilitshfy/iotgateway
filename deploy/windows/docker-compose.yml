@@ -1,0 +1,23 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: iotgateway-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: iotgateway
+      POSTGRES_PASSWORD: "IotGateway@2026"
+      POSTGRES_DB: iotgateway
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/10-init-timescale.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iotgateway -d iotgateway"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  pgdata:
