@@ -1121,8 +1121,8 @@ sudo systemctl start iotgateway
 
 ```sql
 -- 菜单（sysmenu）
-INSERT INTO sysmenu (id, pid, type, title, name, path, component, icon, orderno, status, createtime)
-VALUES (1311000011101, 1311000000101, 2, '报表BI', 'iotReport', '/iot/report', '/iot/report/index', 'ele-Document', 155, 1, now())
+INSERT INTO sysmenu (id, pid, type, title, name, path, component, icon, isiframe, ishide, iskeepalive, isaffix, orderno, status, createtime)
+VALUES (1311000011101, 1311000000101, 2, '报表BI', 'iotReport', '/iot/report', '/iot/report/index', 'ele-Document', false, false, true, false, 155, 1, now())
 ON CONFLICT (id) DO NOTHING;
 
 -- 租户绑定（systenantmenu，默认租户 1300000000001）
@@ -1130,6 +1130,9 @@ INSERT INTO systenantmenu (id, tenantid, menuid)
 VALUES (1309000011101, 1300000000001, 1311000011101)
 ON CONFLICT (id) DO NOTHING;
 ```
+
+> `isiframe/ishide/iskeepalive/isaffix` 为 NOT NULL 字段，必须显式赋值，否则插入报 `null value in column "isiframe"`。
+> Windows 本地部署可直接运行 `deploy\windows\05-init-report-menu.ps1`（脚本会在后端首次启动建表后执行同一份 SQL，可重复执行）。
 
 > 若菜单仍不显示，确认当前登录租户为 `1300000000001`，并整页刷新（非路由热切换）。
 
