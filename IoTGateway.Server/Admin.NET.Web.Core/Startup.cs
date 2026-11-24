@@ -67,7 +67,8 @@ public class Startup : AppStartup
         services.AddSingleton<IIotAlarmRuntime>(sp => sp.GetRequiredService<IotAlarmEngine>());
         services.AddHostedService(sp => sp.GetRequiredService<IotAlarmEngine>());
 
-        // IoT 驱动与设备采集运行时
+        // IoT 驱动与设备采集运行时（IotCollector 控制角色/分片：Web 实例可关闭采集）
+        services.Configure<IotCollectorOptions>(App.Configuration.GetSection("IotCollector"));
         services.AddSingleton<IotDriverManager>();
         services.AddSingleton<IIotDriverProvider>(sp => sp.GetRequiredService<IotDriverManager>());
         services.AddSingleton<IotDeviceRuntimeService>();

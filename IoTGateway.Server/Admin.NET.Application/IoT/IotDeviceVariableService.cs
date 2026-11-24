@@ -105,6 +105,7 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
             if (!string.IsNullOrWhiteSpace(input.Alias)) db.Alias = input.Alias;
             if (!string.IsNullOrWhiteSpace(input.Expressions)) db.Expressions = input.Expressions;
             if (input.Index.HasValue) db.Index = input.Index.Value;
+            db.UpdateTime = DateTime.Now;
             await _variableRep.AsUpdateable(db).ExecuteCommandAsync();
         }
 
@@ -220,6 +221,7 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
             else
             {
                 ApplyRow(row, entity);
+                entity.UpdateTime = DateTime.Now;
                 await _variableRep.AsUpdateable(entity).ExecuteCommandAsync();
                 updateCount++;
             }
@@ -333,6 +335,7 @@ public class IotDeviceVariableService : IDynamicApiController, ITransient
         db.Index = input.Index;
         db.DeviceId = input.DeviceId;
         db.Alias = input.Alias;
+        db.UpdateTime = DateTime.Now;
         await _variableRep.AsUpdateable(db).ExecuteCommandAsync();
         if (Runtime != null)
         {

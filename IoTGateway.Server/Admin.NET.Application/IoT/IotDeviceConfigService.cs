@@ -74,6 +74,7 @@ public class IotDeviceConfigService : IDynamicApiController, ITransient
             if (input.DataSide.HasValue) db.DataSide = input.DataSide.Value;
             if (input.Value != null) db.Value = input.Value;
             if (input.Description != null) db.Description = input.Description;
+            db.UpdateTime = DateTime.Now;
             await _configRep.AsUpdateable(db).ExecuteCommandAsync();
         }
 
@@ -145,6 +146,7 @@ public class IotDeviceConfigService : IDynamicApiController, ITransient
         db.Value = input.Value;
         db.EnumInfo = input.EnumInfo;
         db.DeviceId = input.DeviceId;
+        db.UpdateTime = DateTime.Now;
         await _configRep.AsUpdateable(db).ExecuteCommandAsync();
         if (Runtime != null)
         {

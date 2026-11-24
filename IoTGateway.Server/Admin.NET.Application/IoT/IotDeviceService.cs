@@ -130,6 +130,7 @@ public class IotDeviceService : IDynamicApiController, ITransient
         db.CmdPeriod = input.CmdPeriod;
         db.DeviceTypeEnum = input.DeviceTypeEnum;
         db.EdgeNodeId = input.EdgeNodeId;
+        db.UpdateTime = DateTime.Now;
         await _deviceRep.AsUpdateable(db).ExecuteCommandAsync();
         if (Runtime != null) await Runtime.RestartDeviceAsync(input.Id);
     }
@@ -185,6 +186,7 @@ public class IotDeviceService : IDynamicApiController, ITransient
             if (input.CgUpload.HasValue) db.CgUpload = input.CgUpload.Value;
             if (input.EnforcePeriod.HasValue) db.EnforcePeriod = input.EnforcePeriod.Value;
             if (input.CmdPeriod.HasValue) db.CmdPeriod = input.CmdPeriod.Value;
+            db.UpdateTime = DateTime.Now;
             await _deviceRep.AsUpdateable(db).ExecuteCommandAsync();
         }
 
